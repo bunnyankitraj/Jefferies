@@ -168,16 +168,17 @@ if not df.empty:
                         target_str = f"<span style='margin-left: 8px;'>🎯 <b>₹{fmt_tp}</b></span>"
 
                     # Source & Date
-                    meta_html = f"""
-                    <div style='margin-top: 6px; display: flex; align-items: center; flex-wrap: wrap; font-size: 0.9em; color: #555;'>
-                        {rat_badge}
-                        {target_str}
-                        <span style='margin: 0 10px; color: #ccc;'>|</span>
-                        <span>{row['source']}</span>
-                        <span style='margin: 0 10px; color: #ccc;'>|</span>
-                        <span>{row['display_date']}</span>
-                    </div>
-                    """
+                    # Note: We use a single string to avoid indentation causing Markdown code-block rendering
+                    meta_html = (
+                        f"<div style='margin-top: 6px; display: flex; align-items: center; flex-wrap: wrap; font-size: 0.9em; color: #555;'>"
+                        f"{rat_badge}"
+                        f"{target_str}"
+                        f"<span style='margin: 0 10px; color: #ccc;'>|</span>"
+                        f"<span>{row['source']}</span>"
+                        f"<span style='margin: 0 10px; color: #ccc;'>|</span>"
+                        f"<span>{row['display_date']}</span>"
+                        f"</div>"
+                    )
                     st.markdown(meta_html, unsafe_allow_html=True)
                     
                     st.divider()

@@ -3,3 +3,5 @@ GoogleNews
 pandas
 sqlite-utils
 dateparser
+groq
+requests
