@@ -55,15 +55,39 @@ st.markdown(f"""
     .STHeader {{display: none !important;}}
     
     /* Reduce Top Spacing - Aggressive */
-    .block-container {{
+    .block-container {
         padding-top: 1rem !important;
         padding-bottom: 2rem !important;
-    }}
-    /* Pull Title Up */
-    h1 {{
+    }
+    /* Header Formatting */
+    h2 {
         margin-top: 0 !important;
         padding-top: 0 !important;
-    }}
+        color: #00d4ff !important;
+    }
+    /* Premium Button Styling */
+    .stButton > button {
+        background-color: transparent !important;
+        color: #00d4ff !important;
+        border: 1px solid rgba(0, 212, 255, 0.4) !important;
+        border-radius: 8px !important;
+        transition: all 0.3s ease !important;
+        font-weight: 500 !important;
+    }
+    .stButton > button:hover {
+        background-color: rgba(0, 212, 255, 0.1) !important;
+        border-color: #00d4ff !important;
+        transform: translateY(-1px) !important;
+    }
+    /* Input Styling */
+    .stMultiSelect, .stDateInput {
+        background-color: rgba(255, 255, 255, 0.05) !important;
+        border-radius: 8px !important;
+    }
+    .stMultiSelect [data-baseweb="tag"] {
+        background-color: #00d4ff !important;
+        color: black !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -184,8 +208,6 @@ if not df.empty:
         p_col1.button("1D", on_click=lambda: set_date_state((today_date, today_date)), help="Today", key="p_1d")
         p_col2.button("7D", on_click=lambda: set_date_state((today_date - timedelta(days=7), today_date)), help="7 Days", key="p_7d")
         p_col3.button("1M", on_click=lambda: set_date_state((today_date - timedelta(days=30), today_date)), help="1 Month", key="p_1m")
-        p_col4.button("✖", on_click=lambda: set_date_state((min_date, max_date)), help="Reset", key="p_reset")
-
         p_col4.button("✖", on_click=lambda: set_date_state((min_date, max_date)), help="Reset", key="p_reset")
 
     # Apply Filters
