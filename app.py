@@ -26,7 +26,7 @@ st.set_page_config(page_title="Jefferies India Tracker", layout="wide")
 # Theme Toggle
 with st.sidebar:
     st.markdown("### 🎨 Appearance")
-    dark_mode = st.toggle("Dark Mode", value=True)
+    dark_mode = st.toggle("Dark Mode", value=False)
 
 # Define Theme Colors
 if dark_mode:
@@ -173,25 +173,47 @@ if not df.empty:
     with col3:
         # Date Filter
         if not df.empty:
+            # Determine valid range
             min_date = df['published_datetime'].min().date()
-            max_date = df['published_datetime'].max().date()
+            if pd.isnull(min_date):
+                 min_date = date(2023, 1, 1) # Fallback
             
+            db_max = df['published_datetime'].max().date()
+            if pd.isnull(db_max): db_max = date.today()
+            
+            # Extend max_date to Today to allow "Today" preset even if DB is stale
+            today_date = date.today()
+            max_date = max(db_max, today_date)
+            
+            if min_date > max_date: min_date = max_date # Safety
+
             # Initialize Session State
             if "date_range_val" not in st.session_state:
                 st.session_state.date_range_val = (min_date, max_date)
 
-            st.caption("Filter by Date")
-            
             # Helper to safely set state
             def set_date_state(val):
-                st.session_state.date_range_val = val
+                s, e = val
+                # Clamp values to permissible range to verify no API Exception
+                s = max(min_date, min(s, max_date))
+                e = max(min_date, min(e, max_date))
+                if s > e: s = e
+                st.session_state.date_range_val = (s, e)
             
             # Defining the ranges
-            today = datetime.now().date()
-            d_7 = today - timedelta(days=7)
-            d_30 = today - timedelta(days=30)
+            d_7 = today_date - timedelta(days=7)
+            d_30 = today_date - timedelta(days=30)
             
-            # Date Input first
+            # Presets hidden in expander (Moved above input to act as label/control)
+            with st.expander("📅 Filter by Date", expanded=False):
+                pb1, pb2, pb3, pb4 = st.columns(4)
+                pb1.button("Today", on_click=lambda: set_date_state((today_date, today_date)), use_container_width=True)
+                pb2.button("7D", on_click=lambda: set_date_state((d_7, today_date)), use_container_width=True)
+                pb3.button("1M", on_click=lambda: set_date_state((d_30, today_date)), use_container_width=True)
+                # Clear should reset to full available range
+                pb4.button("✖", help="Reset Filter", on_click=lambda: set_date_state((min_date, max_date)), use_container_width=True)
+
+            # Date Input
             date_range = st.date_input(
                 "Date Range",
                 min_value=min_date,
@@ -199,14 +221,6 @@ if not df.empty:
                 key="date_range_val",
                 label_visibility="collapsed"
             )
-
-            # Presets hidden in expander
-            with st.expander("⚡ Quick Filters"):
-                pb1, pb2, pb3, pb4 = st.columns(4)
-                pb1.button("Today", on_click=lambda: set_date_state((today, today)), use_container_width=True)
-                pb2.button("7D", on_click=lambda: set_date_state((d_7, today)), use_container_width=True)
-                pb3.button("1M", on_click=lambda: set_date_state((d_30, today)), use_container_width=True)
-                pb4.button("✖", help="Clear Filter", on_click=lambda: set_date_state((min_date, max_date)), use_container_width=True)
 
         else:
             date_range = None
