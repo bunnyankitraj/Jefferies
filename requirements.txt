@@ -5,3 +5,4 @@ sqlite-utils
 dateparser
 groq
 requests
+python-dotenv
