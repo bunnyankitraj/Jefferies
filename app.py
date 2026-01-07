@@ -140,7 +140,7 @@ if not df.empty:
     
     with col2:
         # Rating Filter
-        standard_ratings = ["Buy", "Sell", "Hold"]
+        standard_ratings = ["Buy", "Sell", "Hold", "Unknown"]
         selected_ratings = st.multiselect("Rating", options=standard_ratings)
 
     with col3:
@@ -148,8 +148,25 @@ if not df.empty:
         if not df.empty:
             min_date = df['published_datetime'].min().date()
             max_date = df['published_datetime'].max().date()
-            # Default to full range
-            date_range = st.date_input("Date Range", value=(min_date, max_date), min_value=min_date, max_value=max_date)
+            
+            # Initialize Session State just in case (though widget manages it with key)
+            if "date_range_val" not in st.session_state:
+                st.session_state.date_range_val = (min_date, max_date)
+
+            d_col, x_col = st.columns([5, 1])
+            with d_col:
+                date_range = st.date_input(
+                    "Date Range",
+                    min_value=min_date,
+                    max_value=max_date,
+                    key="date_range_val"
+                )
+            with x_col:
+                # Align the cross button with the input field
+                st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+                if st.button("✖", help="Clear Date Filter"):
+                    st.session_state.date_range_val = (min_date, max_date)
+                    st.rerun()
         else:
             date_range = None
 
