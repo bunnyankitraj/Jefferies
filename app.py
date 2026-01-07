@@ -67,32 +67,29 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("Jefferies India Stock Tracker")
-# Layout: Header + Fetch Button
-col_h1, col_h2 = st.columns([3, 1])
-with col_h1:
-    st.empty()
-with col_h2:
+# --- HEADER SECTION ---
+header_col1, header_col2 = st.columns([5, 1])
+with header_col1:
+    st.markdown("<h2 style='margin:0; padding:0;'>Jefferies India Stock Tracker</h2>", unsafe_allow_html=True)
+with header_col2:
     if st.button("🔄 Fetch News", help="Updates in background", key="top_fetch", use_container_width=True):
         def bg_task():
-            try:
-                run_job()
-            except Exception as e:
-                print(f"Bg Job Error: {e}")
+            try: run_job()
+            except Exception as e: print(f"Bg Job Error: {e}")
         threading.Thread(target=bg_task).start()
-        st.toast("Background fetch started! 🏃Ui remains active")
+        st.toast("Background fetch started! 🏃")
+
+st.markdown("<div style='margin-bottom: 20px;'></div>", unsafe_allow_html=True)
 
 # Data Loading
 db = get_db()
 
-# Sidebar
-st.sidebar.header("Controls")
-if st.sidebar.button("Fetch Latest News"):
-    with st.spinner("Fetching and Analyzing..."):
+# Sidebar - Simplified
+st.sidebar.markdown("### ⚙️ Controls")
+if st.sidebar.button("Full Sync", help="Fetch and Reload Page"):
+    with st.spinner("Syncing..."):
         try:
             run_job()
-            st.success("Update Complete!")
-            time.sleep(1)
             st.rerun()
         except Exception as e:
             st.error(f"Error: {e}")
@@ -100,28 +97,17 @@ if st.sidebar.button("Fetch Latest News"):
 # Admin / Setup (For Cloud Deployment)
 with st.sidebar.expander("System Status"):
     try:
-        # Check if Master List exists
         if "known_stocks" in db.table_names():
             count = db["known_stocks"].count
         else:
             count = 0
-        
         st.write(f"**Master List:** {count} stocks")
-        
-        if count == 0 or st.button("Initialize Master List"):
-            if count == 0:
-                st.warning("Database is empty. Click above to setup.")
-            
-            if st.button("Start Download"):
-                with st.spinner("Downloading NSE Equity List..."):
-                    try:
-                        from fetch_full_list import fetch_and_store_full_list
-                        fetch_and_store_full_list()
-                        st.success("Done! Reloading...")
-                        time.sleep(1)
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Failed: {e}")
+        if count == 0:
+            if st.button("Initialize Master List"):
+                with st.spinner("Downloading NSE List..."):
+                    from fetch_full_list import fetch_and_store_full_list
+                    fetch_and_store_full_list()
+                    st.rerun()
     except Exception as e:
         st.error(f"Status Error: {e}")
 
@@ -146,101 +132,61 @@ except Exception:
 
 # Visualization Logic
 if not df.empty:
-    # 0. Safety Cleanup (Blacklist & Dedupe)
+    # ... (Maintenance lists same as before)
     DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
     MISC = ["Unknown", "Yesterday", "Today", "Tomorrow", "Week", "Year", "Month", "Daily", "Weekly", "Monthly", "Report", "Analysis", "Market"]
-    
     BLACKLIST = ["Hotels", "Stocks", "Banks", "Finance", "Power", "Jefferies", "India", "Airports", "Airlines"] + DAYS + MONTHS + MISC
+    
     df = df[~df['stock_name'].isin(BLACKLIST)]
-    
-    # Filter bad sources
     df = df[~df['source'].str.contains('scanx.trade', case=False, na=False)]
-    
-    # 0. Clean and Parse Dates (Critical for sorting)
     df['published_datetime'] = pd.to_datetime(df['published_date'], errors='coerce')
-    
-    # 1. Sort by Latest Date first (So dedupe keeps the newest)
     df = df.sort_values(by='published_datetime', ascending=False)
-    
-    # 2. Normalize Names & Clean URLs
     df['normalized_name'] = df['stock_name'].apply(normalize_name)
     df['url'] = df['url'].apply(clean_url)
-    
-    # 3. Strict Deduplication
     df = df.drop_duplicates(subset=['title', 'normalized_name'], keep='first')
     df = df.drop_duplicates(subset=['url', 'normalized_name'], keep='first')
-    
-    # Format for Display
     df['display_date'] = df['published_datetime'].dt.strftime('%d-%m-%Y %I:%M %p').fillna(df['published_date'])
-    df['Article Link'] = df.apply(lambda x: f'<a href="{x["url"]}" target="_blank">{x["title"]}</a>', axis=1)
 
-    # 2. Search & Filters
-    col1, col2, col3 = st.columns([2, 1, 1])
-    with col1:
-        # Stock Search
-        all_stocks = sorted(df['normalized_name'].unique().tolist())
-        selected_stocks = st.multiselect("Search Stock", options=all_stocks, placeholder="Start typing (e.g. Tata)...")
+    # --- FILTER ROW ---
+    f_col1, f_col2, f_col3 = st.columns([2.5, 1.2, 1.5])
     
-    with col2:
-        # Rating Filter
+    with f_col1:
+        all_stocks = sorted(df['normalized_name'].unique().tolist())
+        selected_stocks = st.multiselect("🔍 Search Stocks", options=all_stocks, placeholder="e.g. Reliance, Tata...")
+    
+    with f_col2:
         standard_ratings = ["Buy", "Sell", "Hold", "Unknown"]
-        selected_ratings = st.multiselect("Rating", options=standard_ratings)
+        selected_ratings = st.multiselect("📊 Rating", options=standard_ratings)
 
-    with col3:
-        # Date Filter
-        if not df.empty:
-            # Determine valid range
-            min_date = df['published_datetime'].min().date()
-            if pd.isnull(min_date):
-                 min_date = date(2023, 1, 1) # Fallback
-            
-            db_max = df['published_datetime'].max().date()
-            if pd.isnull(db_max): db_max = date.today()
-            
-            # Extend max_date to Today to allow "Today" preset even if DB is stale
-            today_date = date.today()
-            max_date = max(db_max, today_date)
-            
-            if min_date > max_date: min_date = max_date # Safety
+    with f_col3:
+        # Determine valid range
+        min_date = df['published_datetime'].min().date() if pd.notnull(df['published_datetime'].min()) else date.today()
+        db_max = df['published_datetime'].max().date() if pd.notnull(df['published_datetime'].max()) else date.today()
+        today_date = date.today()
+        max_date = max(db_max, today_date)
 
-            # Initialize Session State
-            if "date_range_val" not in st.session_state:
-                st.session_state.date_range_val = (min_date, max_date)
+        if "date_range_val" not in st.session_state:
+            st.session_state.date_range_val = (min_date, max_date)
 
-            # Helper to safely set state
-            def set_date_state(val):
-                s, e = val
-                # Clamp values to permissible range to verify no API Exception
-                s = max(min_date, min(s, max_date))
-                e = max(min_date, min(e, max_date))
-                if s > e: s = e
-                st.session_state.date_range_val = (s, e)
-            
-            # Defining the ranges
-            d_7 = today_date - timedelta(days=7)
-            d_30 = today_date - timedelta(days=30)
-            
-            # Presets hidden in expander (Moved above input to act as label/control)
-            with st.expander("📅 Filter by Date", expanded=False):
-                pb1, pb2, pb3, pb4 = st.columns(4)
-                pb1.button("Today", on_click=lambda: set_date_state((today_date, today_date)), use_container_width=True)
-                pb2.button("7D", on_click=lambda: set_date_state((d_7, today_date)), use_container_width=True)
-                pb3.button("1M", on_click=lambda: set_date_state((d_30, today_date)), use_container_width=True)
-                # Clear should reset to full available range
-                pb4.button("✖", help="Reset Filter", on_click=lambda: set_date_state((min_date, max_date)), use_container_width=True)
+        def set_date_state(val):
+            s, e = val
+            s = max(min_date, min(s, max_date))
+            e = max(min_date, min(e, max_date))
+            if s > e: s = e
+            st.session_state.date_range_val = (s, e)
+        
+        st.write("**📅 Date Range**")
+        date_range = st.date_input("Date Range", min_value=min_date, max_value=max_date, key="date_range_val", label_visibility="collapsed")
+        
+        # Micro-Presets
+        p_col1, p_col2, p_col3, p_col4 = st.columns(4)
+        p_col1.button("1D", on_click=lambda: set_date_state((today_date, today_date)), help="Today", key="p_1d")
+        p_col2.button("7D", on_click=lambda: set_date_state((today_date - timedelta(days=7), today_date)), help="7 Days", key="p_7d")
+        p_col3.button("1M", on_click=lambda: set_date_state((today_date - timedelta(days=30), today_date)), help="1 Month", key="p_1m")
+        p_col4.button("✖", on_click=lambda: set_date_state((min_date, max_date)), help="Reset", key="p_reset")
 
-            # Date Input
-            date_range = st.date_input(
-                "Date Range",
-                min_value=min_date,
-                max_value=max_date,
-                key="date_range_val",
-                label_visibility="collapsed"
-            )
-
-        else:
-            date_range = None
+        p_col4.button("✖", on_click=lambda: set_date_state((min_date, max_date)), help="Reset", key="p_reset")
 
     # Apply Filters
     df_filtered = df.copy()
