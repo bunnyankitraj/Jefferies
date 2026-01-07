@@ -23,24 +23,12 @@ def clean_url(url):
 
 st.set_page_config(page_title="Jefferies India Tracker", layout="wide")
 
-# Theme Toggle
-with st.sidebar:
-    st.markdown("### 🎨 Appearance")
-    dark_mode = st.toggle("Dark Mode", value=False)
-
-# Define Theme Colors
-if dark_mode:
-    main_bg = "#0e1117"
-    text_color = "#fafafa"
-    card_bg = "#1E1E1E"
-    border_color = "#333"
-    meta_text = "#ccc"
-else:
-    main_bg = "#ffffff"
-    text_color = "#000000"
-    card_bg = "#f9f9f9"
-    border_color = "#ddd"
-    meta_text = "#555"
+# Theme: Force Dark Mode
+main_bg = "#0e1117"
+text_color = "#fafafa"
+card_bg = "#1E1E1E"
+border_color = "#333"
+meta_text = "#ccc"
 
 st.markdown(f"""
 <style>
