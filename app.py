@@ -4,6 +4,7 @@ from automation.database import get_db
 from automation.job import run_job
 import time
 import re
+from datetime import datetime, timedelta, date
 
 def normalize_name(name):
     if not isinstance(name, str):
@@ -149,24 +150,39 @@ if not df.empty:
             min_date = df['published_datetime'].min().date()
             max_date = df['published_datetime'].max().date()
             
-            # Initialize Session State just in case (though widget manages it with key)
+            # Initialize Session State
             if "date_range_val" not in st.session_state:
                 st.session_state.date_range_val = (min_date, max_date)
 
-            d_col, x_col = st.columns([5, 1])
-            with d_col:
-                date_range = st.date_input(
-                    "Date Range",
-                    min_value=min_date,
-                    max_value=max_date,
-                    key="date_range_val"
-                )
-            with x_col:
-                # Align the cross button with the input field
-                st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-                if st.button("✖", help="Clear Date Filter"):
-                    st.session_state.date_range_val = (min_date, max_date)
-                    st.rerun()
+            st.caption("Filter by Date")
+            
+            # Presets (Placed BEFORE date_input to avoid State API Exception)
+            pb1, pb2, pb3, pb4 = st.columns([1, 1, 1, 1])
+            
+            # Helper to safely set state and rerun
+            def set_date_state(val):
+                st.session_state.date_range_val = val
+                # We don't need st.rerun() if using on_click? 
+                # Actually, simply using on_click is better.
+            
+            # Defining the ranges
+            today = datetime.now().date()
+            d_7 = today - timedelta(days=7)
+            d_30 = today - timedelta(days=30)
+            
+            pb1.button("Today", on_click=lambda: set_date_state((today, today)), use_container_width=True)
+            pb2.button("7D", on_click=lambda: set_date_state((d_7, today)), use_container_width=True)
+            pb3.button("1M", on_click=lambda: set_date_state((d_30, today)), use_container_width=True)
+            pb4.button("All", help="Clear Filter", on_click=lambda: set_date_state((min_date, max_date)), use_container_width=True)
+
+            # Date Input
+            date_range = st.date_input(
+                "Date Range",
+                min_value=min_date,
+                max_value=max_date,
+                key="date_range_val",
+                label_visibility="collapsed"
+            )
         else:
             date_range = None
 
