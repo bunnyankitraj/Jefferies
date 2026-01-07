@@ -1,10 +1,13 @@
 import sqlite_utils
 import sqlite3
+import os
 from datetime import datetime
 
 DATABASE_PATH = "data/market_data.db"
 
 def get_db():
+    # Ensure directory exists for Cloud deployment
+    os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
     return sqlite_utils.Database(DATABASE_PATH)
 
 def init_db():
