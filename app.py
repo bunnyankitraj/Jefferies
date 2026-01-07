@@ -34,6 +34,9 @@ st.markdown("""
 st.title("Jefferies India Stock Tracker")
 st.markdown("### Latest Analyst Calls & Targets")
 
+# Data Loading
+db = get_db()
+
 # Sidebar
 st.sidebar.header("Controls")
 if st.sidebar.button("Fetch Latest News"):
@@ -46,8 +49,33 @@ if st.sidebar.button("Fetch Latest News"):
         except Exception as e:
             st.error(f"Error: {e}")
 
-# Data Loading
-db = get_db()
+# Admin / Setup (For Cloud Deployment)
+with st.sidebar.expander("System Status"):
+    try:
+        # Check if Master List exists
+        if "known_stocks" in db.table_names():
+            count = db["known_stocks"].count
+        else:
+            count = 0
+        
+        st.write(f"**Master List:** {count} stocks")
+        
+        if count == 0 or st.button("Initialize Master List"):
+            if count == 0:
+                st.warning("Database is empty. Click above to setup.")
+            
+            if st.button("Start Download"):
+                with st.spinner("Downloading NSE Equity List..."):
+                    try:
+                        from fetch_full_list import fetch_and_store_full_list
+                        fetch_and_store_full_list()
+                        st.success("Done! Reloading...")
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Failed: {e}")
+    except Exception as e:
+        st.error(f"Status Error: {e}")
 
 query = """
 SELECT 
