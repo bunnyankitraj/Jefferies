@@ -1,0 +1,5 @@
+streamlit
+GoogleNews
+pandas
+sqlite-utils
+dateparser
