@@ -52,6 +52,11 @@ st.markdown(f"""
     div[class*="viewerBadge"] {{display: none !important;}}
     .stApp > header {{display: none !important;}}
     .STHeader {{display: none !important;}}
+    
+    /* Reduce Top Spacing */
+    .block-container {{
+        padding-top: 2rem !important;
+    }}
 </style>
 """, unsafe_allow_html=True)
 
