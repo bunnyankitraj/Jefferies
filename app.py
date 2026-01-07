@@ -28,6 +28,10 @@ st.markdown("""
     td:nth-child(1) { white-space: nowrap !important; }
     /* General table styling */
     td { vertical-align: middle !important; }
+    /* Hide Streamlit Branding */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -127,17 +131,30 @@ if not df.empty:
     df['display_date'] = df['published_datetime'].dt.strftime('%d-%m-%Y %I:%M %p').fillna(df['published_date'])
     df['Article Link'] = df.apply(lambda x: f'<a href="{x["url"]}" target="_blank">{x["title"]}</a>', axis=1)
 
-    # 2. Search Filter (Multi-select for auto-complete feel)
-    all_stocks = sorted(df['normalized_name'].unique().tolist())
-    selected_stocks = st.multiselect("Search Stock", options=all_stocks, placeholder="Start typing to search (e.g. Tata)...")
+    # 2. Search & Filters
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        # Stock Search
+        all_stocks = sorted(df['normalized_name'].unique().tolist())
+        selected_stocks = st.multiselect("Search Stock", options=all_stocks, placeholder="Start typing to search (e.g. Tata)...")
+    
+    with col2:
+        # Rating Filter (Sidebar or Main) - Let's put it here for quick access
+        all_ratings = sorted(df['rating'].dropna().unique().tolist())
+        # Clean up ratings list if it has noise, or just use standard
+        standard_ratings = ["Buy", "Sell", "Hold"]
+        selected_ratings = st.multiselect("Rating", options=standard_ratings)
+
+    # Apply Filters
+    df_filtered = df.copy()
     
     if selected_stocks:
-        # Filter by selected stocks
-        mask = df['normalized_name'].isin(selected_stocks)
-        df_filtered = df[mask]
-    else:
-        # Show all if empty
-        df_filtered = df
+        df_filtered = df_filtered[df_filtered['normalized_name'].isin(selected_stocks)]
+        
+    if selected_ratings:
+        # create a regex pattern to match any selected rating
+        pattern = '|'.join(selected_ratings)
+        df_filtered = df_filtered[df_filtered['rating'].str.contains(pattern, case=False, na=False)]
 
     # 3. Group Display
     if df_filtered.empty:
@@ -157,7 +174,7 @@ if not df.empty:
             target = f"₹{latest_row['target_price']}" if pd.notnull(latest_row['target_price']) else "N/A"
             
             # Color code header
-            header_color = "black"
+            header_color = "gray"
             if "Buy" in rating: header_color = "green"
             elif "Sell" in rating: header_color = "red"
             
