@@ -184,31 +184,33 @@ if not df.empty:
         selected_ratings = st.multiselect("📊 Rating", options=standard_ratings)
 
     with f_col3:
-        # Determine valid range
-        min_date = df['published_datetime'].min().date() if pd.notnull(df['published_datetime'].min()) else date.today()
-        db_max = df['published_datetime'].max().date() if pd.notnull(df['published_datetime'].max()) else date.today()
-        today_date = date.today()
-        max_date = max(db_max, today_date)
+        # Collapsible Date Filter for Mobile-Friendly UI
+        with st.expander("📅 Date Range", expanded=False):
+            # Determine valid range
+            min_date = df['published_datetime'].min().date() if pd.notnull(df['published_datetime'].min()) else date.today()
+            db_max = df['published_datetime'].max().date() if pd.notnull(df['published_datetime'].max()) else date.today()
+            today_date = date.today()
+            max_date = max(db_max, today_date)
 
-        if "date_range_val" not in st.session_state:
-            st.session_state.date_range_val = (min_date, max_date)
+            if "date_range_val" not in st.session_state:
+                st.session_state.date_range_val = (min_date, max_date)
 
-        def set_date_state(val):
-            s, e = val
-            s = max(min_date, min(s, max_date))
-            e = max(min_date, min(e, max_date))
-            if s > e: s = e
-            st.session_state.date_range_val = (s, e)
-        
-        st.write("**📅 Date Range**")
-        date_range = st.date_input("Date Range", min_value=min_date, max_value=max_date, key="date_range_val", label_visibility="collapsed")
-        
-        # Micro-Presets
-        p_col1, p_col2, p_col3, p_col4 = st.columns(4)
-        p_col1.button("1D", on_click=lambda: set_date_state((today_date, today_date)), help="Today", key="p_1d")
-        p_col2.button("7D", on_click=lambda: set_date_state((today_date - timedelta(days=7), today_date)), help="7 Days", key="p_7d")
-        p_col3.button("1M", on_click=lambda: set_date_state((today_date - timedelta(days=30), today_date)), help="1 Month", key="p_1m")
-        p_col4.button("✖", on_click=lambda: set_date_state((min_date, max_date)), help="Reset", key="p_reset")
+            def set_date_state(val):
+                s, e = val
+                s = max(min_date, min(s, max_date))
+                e = max(min_date, min(e, max_date))
+                if s > e: s = e
+                st.session_state.date_range_val = (s, e)
+            
+            date_range = st.date_input("Select Date Range", min_value=min_date, max_value=max_date, key="date_range_val", label_visibility="collapsed")
+            
+            # Quick Presets in horizontal layout
+            st.markdown("<div style='margin-top: 10px; margin-bottom: 5px; font-size: 0.9em; color: #ccc;'>Quick Select:</div>", unsafe_allow_html=True)
+            p_col1, p_col2, p_col3, p_col4 = st.columns(4)
+            p_col1.button("1D", on_click=lambda: set_date_state((today_date, today_date)), help="Today", key="p_1d")
+            p_col2.button("7D", on_click=lambda: set_date_state((today_date - timedelta(days=7), today_date)), help="Last 7 Days", key="p_7d")
+            p_col3.button("1M", on_click=lambda: set_date_state((today_date - timedelta(days=30), today_date)), help="Last Month", key="p_1m")
+            p_col4.button("✖", on_click=lambda: set_date_state((min_date, max_date)), help="Reset to All", key="p_reset")
 
     # Apply Filters
     df_filtered = df.copy()
