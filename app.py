@@ -261,50 +261,52 @@ if not df.empty:
             with st.expander(expand_label, expanded=True if selected_stocks else False):
                 # Mobile-Friendly List View (Vertical Stack)
                 for _, row in stock_data.iterrows():
-                    # 1. Main Title Link (Subheader size for readability)
-                    st.markdown(f"[{row['title']}]({row['url']})", unsafe_allow_html=True)
+                    # Card Container Start
+                    st.markdown(f"""
+                    <div style="
+                        border: 1px solid {border_color};
+                        border-radius: 8px;
+                        padding: 16px;
+                        margin-bottom: 12px;
+                        background-color: {card_bg};
+                        transition: transform 0.2s;
+                    ">
+                        <div style="font-size: 1.1em; font-weight: 600; margin-bottom: 8px;">
+                             <a href="{row['url']}" target="_blank" style="text-decoration: none; color: {text_color}">{row['title']}</a>
+                        </div>
+                    """, unsafe_allow_html=True)
                     
-                    # 2. Metadata Line (Badge style using HTML)
-                    rat = row['rating']
+                    # Logic for Rating Badge
+                    rat = row.get('rating', 'Unknown')
+                    bg_badge = "#666"
+                    if "Buy" in rat: bg_badge = "#28a745"
+                    elif "Sell" in rat: bg_badge = "#dc3545"
+                    elif "Hold" in rat: bg_badge = "#ffc107"
                     
-                    # Manual CSS Badge
-                    if "Buy" in rat:
-                        # Green
-                        bg_color = "#d1fae5" # Light green
-                        text_color = "#065f46" # Dark green
-                    elif "Sell" in rat:
-                        # Red
-                        bg_color = "#fee2e2" # Light red
-                        text_color = "#991b1b" # Dark red
-                    else:
-                        # Gray
-                        bg_color = "#f3f4f6"
-                        text_color = "#1f2937"
-                        
-                    rat_badge = f"<span style='background-color: {bg_color}; color: {text_color}; padding: 4px 8px; border-radius: 6px; font-size: 0.85em; font-weight: 600;'>{rat}</span>"
-                    
-                    # Target Formatting
-                    target_str = ""
-                    if pd.notnull(row['target_price']):
-                        tp = row['target_price']
-                        fmt_tp = f"{int(tp)}" if tp == int(tp) else f"{tp:.2f}"
-                        target_str = f"<span style='margin-left: 8px;'>🎯 <b>₹{fmt_tp}</b></span>"
+                    text_badge = '#000' if 'Hold' in rat else '#fff'
+                    rat_badge = f"<span style='background-color: {bg_badge}; color: {text_badge}; padding: 2px 8px; border-radius: 12px; font-size: 0.8em; margin-right: 8px;'>{rat}</span>"
 
-                    # Source & Date
-                    # Note: We use a single string to avoid indentation causing Markdown code-block rendering
+                    target_str = ""
+                    if pd.notnull(row['target_price']) and row['target_price'] > 0:
+                        fmt_tp = f"{int(row['target_price']):,}"
+                        target_str = f"<span style='margin-left: 8px; color: {text_color};'>🎯 <b>₹{fmt_tp}</b></span>"
+
+                    # Metadata Line
                     meta_html = (
-                        f"<div style='margin-top: 6px; display: flex; align-items: center; flex-wrap: wrap; font-size: 0.9em; color: #555;'>"
+                        f"<div style='margin-top: 6px; display: flex; align-items: center; flex-wrap: wrap; font-size: 0.9em; color: {meta_text};'>"
                         f"{rat_badge}"
                         f"{target_str}"
-                        f"<span style='margin: 0 10px; color: #ccc;'>|</span>"
+                        f"<span style='margin: 0 10px; opacity: 0.5;'>|</span>"
                         f"<span>{row['source']}</span>"
-                        f"<span style='margin: 0 10px; color: #ccc;'>|</span>"
+                        f"<span style='margin: 0 10px; opacity: 0.5;'>|</span>"
                         f"<span>{row['display_date']}</span>"
                         f"</div>"
                     )
                     st.markdown(meta_html, unsafe_allow_html=True)
                     
-                    st.divider()
+                    # Close Card
+                    st.markdown("</div>", unsafe_allow_html=True)
 
 else:
     st.info("No data found. Click 'Fetch Latest News' in the sidebar.")
+
