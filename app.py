@@ -132,18 +132,26 @@ if not df.empty:
     df['Article Link'] = df.apply(lambda x: f'<a href="{x["url"]}" target="_blank">{x["title"]}</a>', axis=1)
 
     # 2. Search & Filters
-    col1, col2 = st.columns([3, 1])
+    col1, col2, col3 = st.columns([2, 1, 1])
     with col1:
         # Stock Search
         all_stocks = sorted(df['normalized_name'].unique().tolist())
-        selected_stocks = st.multiselect("Search Stock", options=all_stocks, placeholder="Start typing to search (e.g. Tata)...")
+        selected_stocks = st.multiselect("Search Stock", options=all_stocks, placeholder="Start typing (e.g. Tata)...")
     
     with col2:
-        # Rating Filter (Sidebar or Main) - Let's put it here for quick access
-        all_ratings = sorted(df['rating'].dropna().unique().tolist())
-        # Clean up ratings list if it has noise, or just use standard
+        # Rating Filter
         standard_ratings = ["Buy", "Sell", "Hold"]
         selected_ratings = st.multiselect("Rating", options=standard_ratings)
+
+    with col3:
+        # Date Filter
+        if not df.empty:
+            min_date = df['published_datetime'].min().date()
+            max_date = df['published_datetime'].max().date()
+            # Default to full range
+            date_range = st.date_input("Date Range", value=(min_date, max_date), min_value=min_date, max_value=max_date)
+        else:
+            date_range = None
 
     # Apply Filters
     df_filtered = df.copy()
@@ -155,6 +163,18 @@ if not df.empty:
         # create a regex pattern to match any selected rating
         pattern = '|'.join(selected_ratings)
         df_filtered = df_filtered[df_filtered['rating'].str.contains(pattern, case=False, na=False)]
+        
+    if date_range and isinstance(date_range, tuple):
+        if len(date_range) == 2:
+            start_d, end_d = date_range
+            df_filtered = df_filtered[
+                (df_filtered['published_datetime'].dt.date >= start_d) & 
+                (df_filtered['published_datetime'].dt.date <= end_d)
+            ]
+        elif len(date_range) == 1:
+            # Handle single date selection edge case
+            start_d = date_range[0]
+            df_filtered = df_filtered[df_filtered['published_datetime'].dt.date >= start_d]
 
     # 3. Group Display
     if df_filtered.empty:
