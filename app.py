@@ -55,39 +55,39 @@ st.markdown(f"""
     .STHeader {{display: none !important;}}
     
     /* Reduce Top Spacing - Aggressive */
-    .block-container {
+    .block-container {{
         padding-top: 1rem !important;
         padding-bottom: 2rem !important;
-    }
+    }}
     /* Header Formatting */
-    h2 {
+    h2 {{
         margin-top: 0 !important;
         padding-top: 0 !important;
         color: #00d4ff !important;
-    }
+    }}
     /* Premium Button Styling */
-    .stButton > button {
+    .stButton > button {{
         background-color: transparent !important;
         color: #00d4ff !important;
         border: 1px solid rgba(0, 212, 255, 0.4) !important;
         border-radius: 8px !important;
         transition: all 0.3s ease !important;
         font-weight: 500 !important;
-    }
-    .stButton > button:hover {
+    }}
+    .stButton > button:hover {{
         background-color: rgba(0, 212, 255, 0.1) !important;
         border-color: #00d4ff !important;
         transform: translateY(-1px) !important;
-    }
+    }}
     /* Input Styling */
-    .stMultiSelect, .stDateInput {
+    .stMultiSelect, .stDateInput {{
         background-color: rgba(255, 255, 255, 0.05) !important;
         border-radius: 8px !important;
-    }
-    .stMultiSelect [data-baseweb="tag"] {
+    }}
+    .stMultiSelect [data-baseweb="tag"] {{
         background-color: #00d4ff !important;
         color: black !important;
-    }
+    }}
 </style>
 """, unsafe_allow_html=True)
 
