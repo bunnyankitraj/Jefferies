@@ -23,16 +23,42 @@ def clean_url(url):
 
 st.set_page_config(page_title="Jefferies India Tracker", layout="wide")
 
-st.markdown("""
+# Theme Toggle
+with st.sidebar:
+    st.markdown("### 🎨 Appearance")
+    dark_mode = st.toggle("Dark Mode", value=True)
+
+# Define Theme Colors
+if dark_mode:
+    main_bg = "#0e1117"
+    text_color = "#fafafa"
+    card_bg = "#1E1E1E"
+    border_color = "#333"
+    meta_text = "#ccc"
+else:
+    main_bg = "#ffffff"
+    text_color = "#000000"
+    card_bg = "#f9f9f9"
+    border_color = "#ddd"
+    meta_text = "#555"
+
+st.markdown(f"""
 <style>
+    /* App Background */
+    .stApp {{
+        background-color: {main_bg};
+        color: {text_color};
+    }}
+    
     /* Force date column to be single line */
-    td:nth-child(1) { white-space: nowrap !important; }
+    td:nth-child(1) {{ white-space: nowrap !important; }}
     /* General table styling */
-    td { vertical-align: middle !important; }
+    td {{ vertical-align: middle !important; }}
+    
     /* Hide Streamlit Branding */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
+    #MainMenu {{visibility: hidden;}}
+    footer {{visibility: hidden;}}
+    header {{visibility: hidden;}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -156,26 +182,16 @@ if not df.empty:
 
             st.caption("Filter by Date")
             
-            # Presets (Placed BEFORE date_input to avoid State API Exception)
-            pb1, pb2, pb3, pb4 = st.columns([1, 1, 1, 1])
-            
-            # Helper to safely set state and rerun
+            # Helper to safely set state
             def set_date_state(val):
                 st.session_state.date_range_val = val
-                # We don't need st.rerun() if using on_click? 
-                # Actually, simply using on_click is better.
             
             # Defining the ranges
             today = datetime.now().date()
             d_7 = today - timedelta(days=7)
             d_30 = today - timedelta(days=30)
             
-            pb1.button("Today", on_click=lambda: set_date_state((today, today)), use_container_width=True)
-            pb2.button("7D", on_click=lambda: set_date_state((d_7, today)), use_container_width=True)
-            pb3.button("1M", on_click=lambda: set_date_state((d_30, today)), use_container_width=True)
-            pb4.button("All", help="Clear Filter", on_click=lambda: set_date_state((min_date, max_date)), use_container_width=True)
-
-            # Date Input
+            # Date Input first
             date_range = st.date_input(
                 "Date Range",
                 min_value=min_date,
@@ -183,6 +199,15 @@ if not df.empty:
                 key="date_range_val",
                 label_visibility="collapsed"
             )
+
+            # Presets hidden in expander
+            with st.expander("⚡ Quick Filters"):
+                pb1, pb2, pb3, pb4 = st.columns(4)
+                pb1.button("Today", on_click=lambda: set_date_state((today, today)), use_container_width=True)
+                pb2.button("7D", on_click=lambda: set_date_state((d_7, today)), use_container_width=True)
+                pb3.button("1M", on_click=lambda: set_date_state((d_30, today)), use_container_width=True)
+                pb4.button("✖", help="Clear Filter", on_click=lambda: set_date_state((min_date, max_date)), use_container_width=True)
+
         else:
             date_range = None
 
