@@ -43,10 +43,15 @@ st.markdown(f"""
     /* General table styling */
     td {{ vertical-align: middle !important; }}
     
-    /* Hide Streamlit Branding */
-    #MainMenu {{visibility: hidden;}}
-    footer {{visibility: hidden;}}
-    header {{visibility: hidden;}}
+    /* Hide Streamlit Branding - Aggressive */
+    #MainMenu {{display: none !important;}}
+    footer {{display: none !important;}}
+    header {{display: none !important;}}
+    
+    /* Hide 'Hosted with Streamlit' Badge specifically */
+    div[class*="viewerBadge"] {{display: none !important;}}
+    .stApp > header {{display: none !important;}}
+    .STHeader {{display: none !important;}}
 </style>
 """, unsafe_allow_html=True)
 
