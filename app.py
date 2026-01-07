@@ -287,15 +287,17 @@ if not df.empty:
             if "Buy" in rating: header_color = "green"
             elif "Sell" in rating: header_color = "red"
             
-            expand_label = f"**{stock}** | Rating: :{header_color}[{rating}] | Target: {target} | *Last Update: {latest_row['display_date']}*"
+            # Use blue color for stock name to make it stand out
+            expand_label = f":blue[**{stock}**] | Rating: :{header_color}[{rating}] | Target: {target} | *Last Update: {latest_row['display_date']}*"
             
             with st.expander(expand_label, expanded=True if selected_stocks else False):
                 # Mobile-Friendly List View (Vertical Stack)
                 for _, row in stock_data.iterrows():
-                    # Card Container Start
+                    # Card Container Start - Added colorful accent border-left
                     st.markdown(f"""
                     <div style="
                         border: 1px solid {border_color};
+                        border-left: 4px solid #00d4ff;
                         border-radius: 8px;
                         padding: 16px;
                         margin-bottom: 12px;
@@ -303,7 +305,7 @@ if not df.empty:
                         transition: transform 0.2s;
                     ">
                         <div style="font-size: 1.1em; font-weight: 600; margin-bottom: 8px;">
-                             <a href="{row['url']}" target="_blank" style="text-decoration: none; color: {text_color}">{row['title']}</a>
+                             <a href="{row['url']}" target="_blank" style="text-decoration: none; color: #00d4ff">{row['title']}</a>
                         </div>
                     """, unsafe_allow_html=True)
                     
