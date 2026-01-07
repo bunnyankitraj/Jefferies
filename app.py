@@ -88,6 +88,38 @@ st.markdown(f"""
         background-color: #00d4ff !important;
         color: black !important;
     }}
+    
+    /* Multiselect dropdown styling - rotate arrow on expand */
+    .stMultiSelect [data-baseweb="select"] [data-baseweb="icon"] svg {{
+        transition: transform 0.3s ease !important;
+    }}
+    .stMultiSelect [aria-expanded="true"] [data-baseweb="icon"] svg {{
+        transform: rotate(180deg) !important;
+    }}
+    /* Alternative selectors for arrow rotation */
+    .stMultiSelect div[role="button"][aria-expanded="true"] svg {{
+        transform: rotate(180deg) !important;
+    }}
+    .stMultiSelect div[role="button"] svg {{
+        transition: transform 0.3s ease !important;
+    }}
+    
+    <script>
+    // Force arrow rotation on multiselect expand
+    document.addEventListener('DOMContentLoaded', function() {{
+        const observer = new MutationObserver(function(mutations) {{
+            document.querySelectorAll('.stMultiSelect div[role="button"]').forEach(function(btn) {{
+                const isExpanded = btn.getAttribute('aria-expanded') === 'true';
+                const svg = btn.querySelector('svg');
+                if (svg) {{
+                    svg.style.transform = isExpanded ? 'rotate(180deg)' : 'rotate(0deg)';
+                    svg.style.transition = 'transform 0.3s ease';
+                }}
+            }});
+        }});
+        observer.observe(document.body, {{ attributes: true, subtree: true, attributeFilter: ['aria-expanded'] }});
+    }});
+    </script>
 </style>
 """, unsafe_allow_html=True)
 
