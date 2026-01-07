@@ -71,7 +71,7 @@ st.title("Jefferies India Stock Tracker")
 # Layout: Header + Fetch Button
 col_h1, col_h2 = st.columns([3, 1])
 with col_h1:
-    st.markdown("### Latest Analyst Calls & Targets")
+    st.empty()
 with col_h2:
     if st.button("🔄 Fetch News", help="Updates in background", key="top_fetch", use_container_width=True):
         def bg_task():
