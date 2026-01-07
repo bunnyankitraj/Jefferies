@@ -3,6 +3,7 @@ import pandas as pd
 from automation.database import get_db
 from automation.job import run_job
 import time
+import threading
 import re
 from datetime import datetime, timedelta, date
 
@@ -67,7 +68,19 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 st.title("Jefferies India Stock Tracker")
-st.markdown("### Latest Analyst Calls & Targets")
+# Layout: Header + Fetch Button
+col_h1, col_h2 = st.columns([3, 1])
+with col_h1:
+    st.markdown("### Latest Analyst Calls & Targets")
+with col_h2:
+    if st.button("🔄 Fetch News", help="Updates in background", key="top_fetch", use_container_width=True):
+        def bg_task():
+            try:
+                run_job()
+            except Exception as e:
+                print(f"Bg Job Error: {e}")
+        threading.Thread(target=bg_task).start()
+        st.toast("Background fetch started! 🏃Ui remains active")
 
 # Data Loading
 db = get_db()
