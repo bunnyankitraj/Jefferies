@@ -53,9 +53,15 @@ st.markdown(f"""
     .stApp > header {{display: none !important;}}
     .STHeader {{display: none !important;}}
     
-    /* Reduce Top Spacing */
+    /* Reduce Top Spacing - Aggressive */
     .block-container {{
-        padding-top: 2rem !important;
+        padding-top: 1rem !important;
+        padding-bottom: 2rem !important;
+    }}
+    /* Pull Title Up */
+    h1 {{
+        margin-top: 0 !important;
+        padding-top: 0 !important;
     }}
 </style>
 """, unsafe_allow_html=True)
