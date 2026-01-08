@@ -6,3 +6,4 @@ dateparser
 groq
 requests
 python-dotenv
+yfinance
