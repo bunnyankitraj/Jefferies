@@ -23,8 +23,6 @@ def clean_url(url):
     return url
 
 st.set_page_config(page_title="Jefferies India Tracker", layout="wide")
-print("App Booting: Heartbeat check...")
-st.sidebar.caption("System Boot: OK")
 
 # Theme: Force Dark Mode
 main_bg = "#0e1117"
@@ -33,6 +31,7 @@ card_bg = "#1E1E1E"
 border_color = "#333"
 meta_text = "#ccc"
 
+# Dynamic CSS (Requires f-string)
 st.markdown(f"""
 <style>
     /* App Background */
@@ -40,32 +39,37 @@ st.markdown(f"""
         background-color: {main_bg};
         color: {text_color};
     }}
-    
+</style>
+""", unsafe_allow_html=True)
+
+# Static CSS (Safe from f-string evaluation)
+st.markdown("""
+<style>
     /* Force date column to be single line */
-    td:nth-child(1) {{ white-space: nowrap !important; }}
+    td:nth-child(1) { white-space: nowrap !important; }
     /* General table styling */
-    td {{ vertical-align: middle !important; }}
+    td { vertical-align: middle !important; }
     
     /* Hide Streamlit Branding - Aggressive */
-    #MainMenu {{display: none !important;}}
-    footer {{display: none !important;}}
-    header {{display: none !important;}}
+    #MainMenu {display: none !important;}
+    footer {display: none !important;}
+    header {display: none !important;}
     
     /* Hide 'Hosted with Streamlit' Badge specifically */
-    div[class*="viewerBadge"] {{display: none !important;}}
-    .stApp > header {{display: none !important;}}
-    .STHeader {{display: none !important;}}
+    div[class*="viewerBadge"] {display: none !important;}
+    .stApp > header {display: none !important;}
+    .STHeader {display: none !important;}
     
     /* Reduce Top Spacing - Aggressive */
-    .block-container {{
+    .block-container {
         padding-top: 1rem !important;
         padding-bottom: 2rem !important;
-    }}
+    }
     /* Pull Title Up */
-    h1 {{
+    h1 {
         margin-top: 0 !important;
         padding-top: 0 !important;
-    }}
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -150,137 +154,57 @@ except Exception:
 if not df.empty:
     # 0. Safety Cleanup (Blacklist & Dedupe)
     DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-    MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-    MISC = ["Unknown", "Yesterday", "Today", "Tomorrow", "Week", "Year", "Month", "Daily", "Weekly", "Monthly", "Report", "Analysis", "Market"]
+    df = df[~df['stock_name'].isin(DAYS)]
     
-    BLACKLIST = ["Hotels", "Stocks", "Banks", "Finance", "Power", "Jefferies", "India", "Airports", "Airlines"] + DAYS + MONTHS + MISC
-    df = df[~df['stock_name'].isin(BLACKLIST)]
+    # Process dates
+    df['date_dt'] = pd.to_datetime(df['entry_date'], errors='coerce')
+    df = df.dropna(subset=['date_dt'])
+    df['display_date'] = df['date_dt'].dt.strftime('%d %b %Y')
     
-    # Filter bad sources
-    df = df[~df['source'].str.contains('scanx.trade', case=False, na=False)]
-    
-    # 0. Clean and Parse Dates (Critical for sorting)
-    df['published_datetime'] = pd.to_datetime(df['published_date'], errors='coerce')
-    
-    # 1. Sort by Latest Date first (So dedupe keeps the newest)
-    df = df.sort_values(by='published_datetime', ascending=False)
-    
-    # 2. Normalize Names & Clean URLs
-    df['normalized_name'] = df['stock_name'].apply(normalize_name)
+    # Clean URLs
     df['url'] = df['url'].apply(clean_url)
     
-    # 3. Strict Deduplication
-    df = df.drop_duplicates(subset=['title', 'normalized_name'], keep='first')
-    df = df.drop_duplicates(subset=['url', 'normalized_name'], keep='first')
-    
-    # Format for Display
-    df['display_date'] = df['published_datetime'].dt.strftime('%d-%m-%Y %I:%M %p').fillna(df['published_date'])
-    df['Article Link'] = df.apply(lambda x: f'<a href="{x["url"]}" target="_blank">{x["title"]}</a>', axis=1)
+    # Deduplicate: Keep latest rating for same stock/title/date
+    df = df.sort_values('date_dt', ascending=False).drop_duplicates(subset=['stock_name', 'title', 'published_date'])
 
-    # 2. Search & Filters
+    # 1. Search Bar (Multi-select)
+    all_stocks = sorted(df['stock_name'].unique())
+    selected_stocks = st.multiselect("🔍 Search Stocks", options=all_stocks)
+    
+    # 2. Filters Row
     col1, col2, col3 = st.columns([2, 1, 1])
+    
     with col1:
-        # Stock Search
-        all_stocks = sorted(df['normalized_name'].unique().tolist())
-        selected_stocks = st.multiselect("Search Stock", options=all_stocks, placeholder="Start typing (e.g. Tata)...")
+        # Rating Filter
+        ratings = ["All"] + sorted(df['rating'].unique().tolist())
+        sel_rating = st.selectbox("Rating", options=ratings)
     
     with col2:
-        # Rating Filter
-        standard_ratings = ["Buy", "Sell", "Hold", "Unknown"]
-        selected_ratings = st.multiselect("Rating", options=standard_ratings)
-
-    with col3:
         # Date Filter
-        if not df.empty:
-            # Determine valid range
-            min_date = df['published_datetime'].min().date()
-            if pd.isnull(min_date):
-                 min_date = date(2023, 1, 1) # Fallback
-            
-            db_max = df['published_datetime'].max().date()
-            if pd.isnull(db_max): db_max = date.today()
-            
-            # Extend max_date to Today to allow "Today" preset even if DB is stale
-            today_date = date.today()
-            max_date = max(db_max, today_date)
-            
-            if min_date > max_date: min_date = max_date # Safety
-
-            # Initialize Session State
-            if "date_range_val" not in st.session_state:
-                st.session_state.date_range_val = (min_date, max_date)
-
-            # Helper to safely set state
-            def set_date_state(val):
-                s, e = val
-                # Clamp values to permissible range to verify no API Exception
-                s = max(min_date, min(s, max_date))
-                e = max(min_date, min(e, max_date))
-                if s > e: s = e
-                st.session_state.date_range_val = (s, e)
-            
-            # Defining the ranges
-            d_7 = today_date - timedelta(days=7)
-            d_30 = today_date - timedelta(days=30)
-            
-            # Presets hidden in expander (Moved above input to act as label/control)
-            with st.expander("📅 Filter by Date", expanded=False):
-                pb1, pb2, pb3, pb4 = st.columns(4)
-                pb1.button("Today", on_click=lambda: set_date_state((today_date, today_date)), use_container_width=True)
-                pb2.button("7D", on_click=lambda: set_date_state((d_7, today_date)), use_container_width=True)
-                pb3.button("1M", on_click=lambda: set_date_state((d_30, today_date)), use_container_width=True)
-                # Clear should reset to full available range
-                pb4.button("✖", help="Reset Filter", on_click=lambda: set_date_state((min_date, max_date)), use_container_width=True)
-
-            # Date Input
-            date_range = st.date_input(
-                "Date Range",
-                min_value=min_date,
-                max_value=max_date,
-                key="date_range_val",
-                label_visibility="collapsed"
-            )
-
-        else:
-            date_range = None
+        min_date = df['date_dt'].min().date()
+        max_date = date.today()
+        date_range = st.date_input("Date Range", value=(min_date, max_date), min_value=min_date, max_value=max_date)
 
     # Apply Filters
-    df_filtered = df.copy()
-    
+    filtered_df = df.copy()
     if selected_stocks:
-        df_filtered = df_filtered[df_filtered['normalized_name'].isin(selected_stocks)]
-        
-    if selected_ratings:
-        # create a regex pattern to match any selected rating
-        pattern = '|'.join(selected_ratings)
-        df_filtered = df_filtered[df_filtered['rating'].str.contains(pattern, case=False, na=False)]
-        
-    if date_range and isinstance(date_range, tuple):
-        if len(date_range) == 2:
-            start_d, end_d = date_range
-            df_filtered = df_filtered[
-                (df_filtered['published_datetime'].dt.date >= start_d) & 
-                (df_filtered['published_datetime'].dt.date <= end_d)
-            ]
-        elif len(date_range) == 1:
-            # Handle single date selection edge case
-            start_d = date_range[0]
-            df_filtered = df_filtered[df_filtered['published_datetime'].dt.date >= start_d]
+        filtered_df = filtered_df[filtered_df['stock_name'].isin(selected_stocks)]
+    if sel_rating != "All":
+        filtered_df = filtered_df[filtered_df['rating'] == sel_rating]
+    if isinstance(date_range, tuple) and len(date_range) == 2:
+        filtered_df = filtered_df[(filtered_df['date_dt'].dt.date >= date_range[0]) & 
+                                  (filtered_df['date_dt'].dt.date <= date_range[1])]
 
-    # 3. Group Display
-    if df_filtered.empty:
-        st.info("No stocks found matching your search.")
+    # 3. Display Results
+    if filtered_df.empty:
+        st.warning("No matches found for the selected filters.")
     else:
-        # Get unique stocks from the already sorted dataframe
-        unique_stocks = df_filtered['normalized_name'].unique()
-        
-        st.write(f"Showing {len(unique_stocks)} stocks")
-        
-        for stock in unique_stocks:
-            stock_data = df_filtered[df_filtered['normalized_name'] == stock]
-            latest_row = stock_data.iloc[0] # Because it is sorted
+        # Group by stock
+        for stock in sorted(filtered_df['stock_name'].unique()):
+            stock_data = filtered_df[filtered_df['stock_name'] == stock]
+            latest_row = stock_data.iloc[0]
             
-            # Header Info
+            # Rating logic
             rating = latest_row['rating'] if latest_row['rating'] else "N/A"
             target = f"₹{latest_row['target_price']}" if pd.notnull(latest_row['target_price']) else "N/A"
             
@@ -294,18 +218,11 @@ if not df.empty:
             with st.expander(expand_label, expanded=True if selected_stocks else False):
                 # Mobile-Friendly List View (Vertical Stack)
                 for _, row in stock_data.iterrows():
-                    # Card Container Start
+                    # Card Container
                     st.markdown(f"""
-                    <div style="
-                        border: 1px solid {border_color};
-                        border-radius: 8px;
-                        padding: 16px;
-                        margin-bottom: 12px;
-                        background-color: {card_bg};
-                        transition: transform 0.2s;
-                    ">
+                    <div style="border: 1px solid {border_color}; border-radius: 8px; padding: 16px; margin-bottom: 12px; background-color: {card_bg};">
                         <div style="font-size: 1.1em; font-weight: 600; margin-bottom: 8px;">
-                             <a href="{row['url']}" target="_blank" style="text-decoration: none; color: {text_color}">{row['title']}</a>
+                             <a href="{row['url']}" target="_blank" style="text-decoration: none; color: #00d4ff">{row['title']}</a>
                         </div>
                     """, unsafe_allow_html=True)
                     
@@ -342,4 +259,3 @@ if not df.empty:
 
 else:
     st.info("No data found. Click 'Fetch Latest News' in the sidebar.")
-
