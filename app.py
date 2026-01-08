@@ -221,4 +221,17 @@ if not df.empty:
                     st.markdown(meta, unsafe_allow_html=True)
                     st.markdown("</div>", unsafe_allow_html=True)
 else:
-    st.info("No data. Click 'Fetch Latest News'.")
+    # Check if DB is initialized to give better guidance
+    try:
+        if "known_stocks" not in db.table_names() or db["known_stocks"].count == 0:
+            st.warning("⚠️ **Setup Required:** Streamlit Cloud starts with an empty database.")
+            st.markdown("""
+            ### How to fix this:
+            1. Open the **"System Status"** expander in the sidebar (left).
+            2. Click **"Initialize Master List"** then **"Start Download"**.
+            3. Once stocks are loaded, click **"Fetch Latest News"**.
+            """)
+        else:
+            st.info("No ratings found. Click **'Fetch Latest News'** in the sidebar to scan for today's calls.")
+    except Exception:
+        st.info("No data. Click 'Fetch Latest News' in the sidebar.")
