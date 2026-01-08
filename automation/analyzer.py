@@ -19,28 +19,31 @@ class StockRating:
 
 def get_prompt(text):
     return f"""
-    You are a financial news analyzer. 
-    Analyze the following news snippet related to 'Jefferies' and extract structured data about stock ratings.
+    You are a financial news analyzer specializing in 'Jefferies' equity research. 
+    Analyze the following news snippet and extract structured data about stock ratings/recommendations.
     
     News Snippet:
     {text}
     
     Extract the following for each stock mentioned:
-    1. Stock Name (e.g. Tata Motors, HDFC Bank). 
-       IMPORTANT: Do NOT extract generic SECTOR names like 'Hotels'. Only specific COMPANY names.
-       IMPORTANT: Do NOT extract days (e.g. Monday), months (e.g. January), or time references.
-       Normalize names: Remove 'Ltd', 'Limited', 'India' suffixes. Use 'Tata Steel' not 'Tata Steel Ltd'.
-    2. Rating (Buy, Sell, Hold, Underperform, Outperform) - if not explicitly stated, infer or set "Unknown".
-    3. Target Price (Numeric value in INR) - if not stated, set null.
+    1. Stock Name: Only specific COMPANY names (e.g. 'Tata Motors', 'Zomato'). 
+       - DO NOT extract sector names (e.g. 'Auto', 'Banks', 'Hotels').
+       - DO NOT extract time/days (e.g. 'Monday', 'January').
+       - Normalize: Remove 'Ltd', 'Limited', 'India' suffixes.
+    2. Rating: This is the CORE task. 
+       - Look for words like 'Buy', 'Sell', 'Hold', 'Accumulate' (map to Buy), 'Underperform' (map to Sell), 'Outperform' (map to Buy).
+       - BIFURCATE DECISIVELY: If the article discusses a "Top Pick", "Favorite", or "Upgrade", mark as 'Buy'. If it discusses "Downgrade" or "Caution", mark as 'Sell'.
+       - Only use 'Unknown' if there is absolutely no sentiment or recommendation expressed.
+    3. Target Price: Numeric per-share value in INR. 
+       - IMPORTANT: Do NOT extract total valuation or market cap figures (e.g. '1 lakh crore', '50 billion').
+       - If the price seems like a total monetary value rather than a per-share target, set null.
+       - If not stated, set null.
     
-    Return the output strictly as a JSON list of objects. 
+    Return ONLY a raw JSON list of objects. No preamble, no markdown.
     Example: 
     [
-        {{"stock_name": "Tata Motors", "rating": "Buy", "target_price": 1000.0}}
+        {{"stock_name": "Tata Motors", "rating": "Buy", "target_price": 1200.0}}
     ]
-    
-    If no specific company stock is found, return [].
-    Do not add any markdown formatting like ```json ... ```. Just return the raw JSON string.
     """
 
 def analyze_with_groq(text):
@@ -103,11 +106,15 @@ def analyze_article(article_data):
         response_content = response_content.replace("```json", "").replace("```", "")
         data = json.loads(response_content)
         
+        # Deduplicate results from the LLM based on stock_name
+        seen_stocks = set()
         ratings = []
         for item in data:
-            if item.get("stock_name") and item.get("stock_name") != "Unknown":
+            s_name = item.get("stock_name")
+            if s_name and s_name != "Unknown" and s_name not in seen_stocks:
+                seen_stocks.add(s_name)
                 ratings.append(StockRating(
-                    item["stock_name"], 
+                    s_name, 
                     item.get("rating", "Unknown"), 
                     item.get("target_price")
                 ))

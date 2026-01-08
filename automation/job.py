@@ -48,8 +48,10 @@ def run_job():
             
             # Validate against Master List
             try:
-                # FTS Search
-                results = list(db["known_stocks"].search(raw_name, limit=1))
+                # Clean and quote for FTS (dots/spaces break it)
+                clean_name = raw_name.replace(".", "").replace(",", "").replace("-", " ").replace("\"", "").replace("'", "")
+                search_term = f'"{clean_name}"'
+                results = list(db["known_stocks"].search(search_term, limit=1))
                 if results:
                     valid_name = results[0]['company_name']
             except Exception as e:

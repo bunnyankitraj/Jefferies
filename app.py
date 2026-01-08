@@ -23,11 +23,15 @@ import time
 import threading
 import re
 from datetime import datetime, timedelta, date
+import pytz
+
+ist_tz = pytz.timezone('Asia/Kolkata')
 
 def normalize_name(name):
+    # Data is now pre-standardized in DB via Master List. 
+    # Just basic cleanup here.
     if not isinstance(name, str):
         return str(name)
-    name = re.sub(r'\s+(?:Ltd\.?|Limited|India|Inds\.?|Industries)\b\.?', '', name, flags=re.IGNORECASE)
     return name.strip()
 
 def clean_url(url):
@@ -141,13 +145,27 @@ else:
         st.info("No stock calls found yet. Click **'Fetch Latest News'** above to start the engine.")
     else:
         # Pre-process Data
+        df['stock_name'] = df['stock_name'].apply(normalize_name)
         DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         df = df[~df['stock_name'].isin(DAYS)]
-        df['date_dt'] = pd.to_datetime(df['entry_date'], errors='coerce')
+        
+        # Use published_date for news time, falling back to entry_date
+        df['date_dt'] = pd.to_datetime(df['published_date'], errors='coerce')
+        
+        def to_ist(dt):
+            if pd.isnull(dt): return dt
+            if dt.tzinfo is None:
+                # Assume UTC if no timezone info from Google News
+                dt = pytz.utc.localize(dt)
+            return dt.astimezone(ist_tz)
+        
+        df['date_dt'] = df['date_dt'].apply(to_ist)
         df = df.dropna(subset=['date_dt'])
-        df['display_date'] = df['date_dt'].dt.strftime('%d %b %Y')
+        
+        df['display_date'] = df['date_dt'].dt.strftime('%d %b %Y, %I:%M %p')
         df['url'] = df['url'].apply(clean_url)
-        df = df.sort_values('date_dt', ascending=False).drop_duplicates(subset=['stock_name', 'title', 'published_date'])
+        # More aggressive deduplication: Same stock + Same cleansed URL = One entry
+        df = df.sort_values('date_dt', ascending=False).drop_duplicates(subset=['stock_name', 'url'])
 
         # Filter Section
         st.divider()
@@ -176,16 +194,23 @@ else:
             st.warning("No matches for current filters.")
         else:
             # Display Cards
-            for stock in sorted(f_df['stock_name'].unique()):
+            # Sort stocks by their LATEST entry_date (latest first)
+            stocks_sorted = f_df.groupby('stock_name')['date_dt'].max().sort_values(ascending=False).index.tolist()
+            
+            for stock in stocks_sorted:
                 s_data = f_df[f_df['stock_name'] == stock]
+                # Sort inner results by date descending (latest first)
+                s_data = s_data.sort_values('date_dt', ascending=False)
                 top = s_data.iloc[0]
                 
                 h_c = "gray"
                 if "Buy" in top['rating']: h_c = "green"
                 elif "Sell" in top['rating']: h_c = "red"
+                elif "Hold" in top['rating']: h_c = "orange" # Distinct from gray Unknown
                 
                 tp = f"₹{top['target_price']}" if pd.notnull(top['target_price']) else "N/A"
-                label = f"**{stock}** | Rating: :{h_c}[{top['rating']}] | Target: {tp}"
+                # Stock name in cyan/blue to pop
+                label = f":blue[**{stock}**] ({top['display_date']}) | Rating: :{h_c}[{top['rating']}] | Target: {tp}"
                 
                 with st.expander(label, expanded=bool(selected_stocks)):
                     for _, row in s_data.iterrows():
@@ -197,12 +222,12 @@ else:
                         """, unsafe_allow_html=True)
                         
                         rat = row.get('rating', 'Unknown')
-                        bg = "#666"
-                        if "Buy" in rat: bg = "#28a745"
-                        elif "Sell" in rat: bg = "#dc3545"
-                        elif "Hold" in rat: bg = "#ffc107"
+                        bg = "#666" # Default Gray for Unknown
+                        if "Buy" in rat: bg = "#28a745" # Green
+                        elif "Sell" in rat: bg = "#dc3545" # Red
+                        elif "Hold" in rat: bg = "#fb8c00" # Orange/Amber
                         
-                        c_tc = '#000' if 'Hold' in rat else '#fff'
+                        c_tc = '#fff'
                         fmt_tp = f"₹{int(row['target_price']):,}" if pd.notnull(row['target_price']) else ""
                         
                         meta_html = (

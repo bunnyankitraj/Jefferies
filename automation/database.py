@@ -78,11 +78,14 @@ def save_article(db, title, url, published_date, source, raw_content=""):
         return None
 
 def save_rating(db, article_id, stock_name, rating, target_price):
-    db["stock_ratings"].insert({
-        "article_id": article_id,
-        "stock_ticker": stock_name.upper().replace(" ", ""), # Simple ticker logic for now
-        "stock_name": stock_name,
-        "rating": rating,
-        "target_price": target_price,
-        "entry_date": datetime.now().date().isoformat()
-    })
+    # Prevent duplicate stock-article pairs
+    existing = list(db["stock_ratings"].rows_where("article_id = ? AND stock_name = ?", [article_id, stock_name]))
+    if not existing:
+        db["stock_ratings"].insert({
+            "article_id": article_id,
+            "stock_ticker": stock_name.upper().replace(" ", ""),
+            "stock_name": stock_name,
+            "rating": rating,
+            "target_price": target_price,
+            "entry_date": datetime.now().date().isoformat()
+        })
