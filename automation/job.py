@@ -1,6 +1,6 @@
-from automation.news_fetcher import fetch_jefferies_news
-from automation.analyzer import analyze_article
-from automation.database import init_db, save_article, save_rating
+from .news_fetcher import fetch_jefferies_news
+from .analyzer import analyze_article
+from .database import init_db, save_article, save_rating
 from dotenv import load_dotenv
 import datetime
 

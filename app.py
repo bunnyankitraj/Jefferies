@@ -8,8 +8,18 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.append(current_dir)
 
-from automation.database import get_db
-from automation.job import run_job
+# Robust Imports for Cloud
+try:
+    from automation.database import get_db
+    from automation.job import run_job
+except (ImportError, KeyError):
+    # Fallback for specific Streamlit Cloud path quirks
+    import sys
+    import os
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    from automation.database import get_db
+    from automation.job import run_job
+
 import time
 import threading
 import re
