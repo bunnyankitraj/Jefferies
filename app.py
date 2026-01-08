@@ -23,6 +23,8 @@ def clean_url(url):
     return url
 
 st.set_page_config(page_title="Jefferies India Tracker", layout="wide")
+print("App Booting: Heartbeat check...")
+st.sidebar.caption("System Boot: OK")
 
 # Theme: Force Dark Mode
 main_bg = "#0e1117"
