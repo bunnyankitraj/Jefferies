@@ -3,7 +3,7 @@ import dateparser
 from datetime import datetime
 import time
 
-def fetch_jefferies_news(days=1):
+def fetch_jefferies_news(days=7):
     """
     Fetches news about 'Jefferies' and 'India' or 'Stocks' from the last N days.
     """
