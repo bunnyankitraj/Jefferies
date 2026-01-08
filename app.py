@@ -1,5 +1,13 @@
 import streamlit as st
 import pandas as pd
+import os
+import sys
+
+# Ensure current directory is in sys.path for Cloud imports
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.append(current_dir)
+
 from automation.database import get_db
 from automation.job import run_job
 import time
@@ -31,10 +39,9 @@ card_bg = "#1E1E1E"
 border_color = "#333"
 meta_text = "#ccc"
 
-# Dynamic CSS (Requires f-string)
+# 1. Dynamic CSS (Requires variables)
 st.markdown(f"""
 <style>
-    /* App Background */
     .stApp {{
         background-color: {main_bg};
         color: {text_color};
@@ -42,7 +49,7 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-# Static CSS (Safe from f-string evaluation)
+# 2. Static CSS (Safe from f-string braces)
 st.markdown("""
 <style>
     /* Force date column to be single line */
@@ -50,30 +57,27 @@ st.markdown("""
     /* General table styling */
     td { vertical-align: middle !important; }
     
-    /* Hide Streamlit Branding - Aggressive */
+    /* Hide Streamlit Branding */
     #MainMenu {display: none !important;}
     footer {display: none !important;}
     header {display: none !important;}
-    
-    /* Hide 'Hosted with Streamlit' Badge specifically */
     div[class*="viewerBadge"] {display: none !important;}
-    .stApp > header {display: none !important;}
-    .STHeader {display: none !important;}
     
-    /* Reduce Top Spacing - Aggressive */
+    /* Reduce Top Spacing */
     .block-container {
         padding-top: 1rem !important;
         padding-bottom: 2rem !important;
     }
-    /* Pull Title Up */
     h1 {
         margin-top: 0 !important;
         padding-top: 0 !important;
+        font-size: 2rem !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
 st.title("Jefferies India Stock Tracker")
+
 # Layout: Header + Fetch Button
 col_h1, col_h2 = st.columns([3, 1])
 with col_h1:
@@ -86,7 +90,7 @@ with col_h2:
             except Exception as e:
                 print(f"Bg Job Error: {e}")
         threading.Thread(target=bg_task).start()
-        st.toast("Background fetch started! 🏃Ui remains active")
+        st.toast("Background fetch started! 🏃")
 
 # Data Loading
 db = get_db()
@@ -103,27 +107,21 @@ if st.sidebar.button("Fetch Latest News"):
         except Exception as e:
             st.error(f"Error: {e}")
 
-# Admin / Setup (For Cloud Deployment)
+# Admin / Setup
 with st.sidebar.expander("System Status"):
     try:
-        # Check if Master List exists
         if "known_stocks" in db.table_names():
             count = db["known_stocks"].count
         else:
             count = 0
-        
         st.write(f"**Master List:** {count} stocks")
-        
         if count == 0 or st.button("Initialize Master List"):
-            if count == 0:
-                st.warning("Database is empty. Click above to setup.")
-            
             if st.button("Start Download"):
-                with st.spinner("Downloading NSE Equity List..."):
+                with st.spinner("Downloading NSE List..."):
                     try:
                         from fetch_full_list import fetch_and_store_full_list
                         fetch_and_store_full_list()
-                        st.success("Done! Reloading...")
+                        st.success("Done!")
                         time.sleep(1)
                         st.rerun()
                     except Exception as e:
@@ -133,14 +131,8 @@ with st.sidebar.expander("System Status"):
 
 query = """
 SELECT 
-    r.entry_date,
-    r.stock_name,
-    r.rating,
-    r.target_price,
-    a.title,
-    a.source,
-    a.published_date,
-    a.url
+    r.entry_date, r.stock_name, r.rating, r.target_price,
+    a.title, a.source, a.published_date, a.url
 FROM stock_ratings r
 JOIN news_articles a ON r.article_id = a.id
 """
@@ -150,75 +142,49 @@ try:
 except Exception:
     df = pd.DataFrame()
 
-# Visualization Logic
 if not df.empty:
-    # 0. Safety Cleanup (Blacklist & Dedupe)
     DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     df = df[~df['stock_name'].isin(DAYS)]
-    
-    # Process dates
     df['date_dt'] = pd.to_datetime(df['entry_date'], errors='coerce')
     df = df.dropna(subset=['date_dt'])
     df['display_date'] = df['date_dt'].dt.strftime('%d %b %Y')
-    
-    # Clean URLs
     df['url'] = df['url'].apply(clean_url)
-    
-    # Deduplicate: Keep latest rating for same stock/title/date
     df = df.sort_values('date_dt', ascending=False).drop_duplicates(subset=['stock_name', 'title', 'published_date'])
 
-    # 1. Search Bar (Multi-select)
     all_stocks = sorted(df['stock_name'].unique())
     selected_stocks = st.multiselect("🔍 Search Stocks", options=all_stocks)
     
-    # 2. Filters Row
     col1, col2, col3 = st.columns([2, 1, 1])
-    
     with col1:
-        # Rating Filter
         ratings = ["All"] + sorted(df['rating'].unique().tolist())
         sel_rating = st.selectbox("Rating", options=ratings)
-    
     with col2:
-        # Date Filter
         min_date = df['date_dt'].min().date()
         max_date = date.today()
-        date_range = st.date_input("Date Range", value=(min_date, max_date), min_value=min_date, max_value=max_date)
+        date_range = st.date_input("Date Range", value=(min_date, max_date))
 
-    # Apply Filters
     filtered_df = df.copy()
     if selected_stocks:
         filtered_df = filtered_df[filtered_df['stock_name'].isin(selected_stocks)]
     if sel_rating != "All":
         filtered_df = filtered_df[filtered_df['rating'] == sel_rating]
-    if isinstance(date_range, tuple) and len(date_range) == 2:
-        filtered_df = filtered_df[(filtered_df['date_dt'].dt.date >= date_range[0]) & 
-                                  (filtered_df['date_dt'].dt.date <= date_range[1])]
 
-    # 3. Display Results
     if filtered_df.empty:
-        st.warning("No matches found for the selected filters.")
+        st.warning("No matches found.")
     else:
-        # Group by stock
         for stock in sorted(filtered_df['stock_name'].unique()):
             stock_data = filtered_df[filtered_df['stock_name'] == stock]
             latest_row = stock_data.iloc[0]
-            
-            # Rating logic
-            rating = latest_row['rating'] if latest_row['rating'] else "N/A"
+            rating = latest_row['rating'] or "Unknown"
             target = f"₹{latest_row['target_price']}" if pd.notnull(latest_row['target_price']) else "N/A"
             
-            # Color code header
-            header_color = "gray"
-            if "Buy" in rating: header_color = "green"
-            elif "Sell" in rating: header_color = "red"
+            h_color = "gray"
+            if "Buy" in rating: h_color = "green"
+            elif "Sell" in rating: h_color = "red"
             
-            expand_label = f"**{stock}** | Rating: :{header_color}[{rating}] | Target: {target} | *Last Update: {latest_row['display_date']}*"
-            
-            with st.expander(expand_label, expanded=True if selected_stocks else False):
-                # Mobile-Friendly List View (Vertical Stack)
+            label = f"**{stock}** | Rating: :{h_color}[{rating}] | Target: {target}"
+            with st.expander(label, expanded=bool(selected_stocks)):
                 for _, row in stock_data.iterrows():
-                    # Card Container
                     st.markdown(f"""
                     <div style="border: 1px solid {border_color}; border-radius: 8px; padding: 16px; margin-bottom: 12px; background-color: {card_bg};">
                         <div style="font-size: 1.1em; font-weight: 600; margin-bottom: 8px;">
@@ -226,36 +192,23 @@ if not df.empty:
                         </div>
                     """, unsafe_allow_html=True)
                     
-                    # Logic for Rating Badge
                     rat = row.get('rating', 'Unknown')
-                    bg_badge = "#666"
-                    if "Buy" in rat: bg_badge = "#28a745"
-                    elif "Sell" in rat: bg_badge = "#dc3545"
-                    elif "Hold" in rat: bg_badge = "#ffc107"
+                    bg = "#666"
+                    if "Buy" in rat: bg = "#28a745"
+                    elif "Sell" in rat: bg = "#dc3545"
+                    elif "Hold" in rat: bg = "#ffc107"
                     
-                    text_badge = '#000' if 'Hold' in rat else '#fff'
-                    rat_badge = f"<span style='background-color: {bg_badge}; color: {text_badge}; padding: 2px 8px; border-radius: 12px; font-size: 0.8em; margin-right: 8px;'>{rat}</span>"
-
-                    target_str = ""
-                    if pd.notnull(row['target_price']) and row['target_price'] > 0:
-                        fmt_tp = f"{int(row['target_price']):,}"
-                        target_str = f"<span style='margin-left: 8px; color: {text_color};'>🎯 <b>₹{fmt_tp}</b></span>"
-
-                    # Metadata Line
-                    meta_html = (
-                        f"<div style='margin-top: 6px; display: flex; align-items: center; flex-wrap: wrap; font-size: 0.9em; color: {meta_text};'>"
-                        f"{rat_badge}"
-                        f"{target_str}"
-                        f"<span style='margin: 0 10px; opacity: 0.5;'>|</span>"
-                        f"<span>{row['source']}</span>"
-                        f"<span style='margin: 0 10px; opacity: 0.5;'>|</span>"
-                        f"<span>{row['display_date']}</span>"
+                    tc = '#000' if 'Hold' in rat else '#fff'
+                    fmt_tp = f"₹{int(row['target_price']):,}" if pd.notnull(row['target_price']) else ""
+                    
+                    meta = (
+                        f"<div style='font-size: 0.9em; color: {meta_text};'>"
+                        f"<span style='background:{bg}; color:{tc}; padding:2px 8px; border-radius:12px;'>{rat}</span>"
+                        f"<span style='margin-left:8px;'>{fmt_tp}</span>"
+                        f" | <span>{row['source']}</span> | <span>{row['display_date']}</span>"
                         f"</div>"
                     )
-                    st.markdown(meta_html, unsafe_allow_html=True)
-                    
-                    # Close Card
+                    st.markdown(meta, unsafe_allow_html=True)
                     st.markdown("</div>", unsafe_allow_html=True)
-
 else:
-    st.info("No data found. Click 'Fetch Latest News' in the sidebar.")
+    st.info("No data. Click 'Fetch Latest News'.")
