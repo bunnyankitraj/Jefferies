@@ -62,6 +62,13 @@ def run_job():
             else:
                 print(f"Skipped unknown stock: {raw_name}")
             
+    # 5. Fetch Stock Prices
+    try:
+        from automation.stock_fetcher import fetch_eod_prices
+        fetch_eod_prices()
+    except Exception as e:
+        print(f"Error fetching stock prices: {e}")
+
     print(f"Job Finished. Added {new_ratings_count} new ratings.")
     print("-----------------------------------")
 

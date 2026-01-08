@@ -53,6 +53,20 @@ def init_db():
         except Exception:
             pass # FTS might already be enabled
 
+    # Stock Prices Table
+    if "stock_prices" not in db.table_names():
+        db["stock_prices"].create({
+            "id": int,
+            "symbol": str,
+            "date": str,
+            "open": float,
+            "high": float,
+            "low": float,
+            "close": float,
+            "volume": int
+        }, pk="id")
+        db["stock_prices"].create_index(["symbol", "date"], unique=True)
+
     return db
 
 def save_article(db, title, url, published_date, source, raw_content=""):

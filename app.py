@@ -162,9 +162,17 @@ SELECT
     a.title,
     a.source,
     a.published_date,
-    a.url
+    a.url,
+    p.close as current_price,
+    p.date as price_date
 FROM stock_ratings r
 JOIN news_articles a ON r.article_id = a.id
+LEFT JOIN known_stocks k ON r.stock_name = k.company_name
+LEFT JOIN (
+    SELECT symbol, close, date
+    FROM stock_prices
+    WHERE id IN (SELECT MAX(id) FROM stock_prices GROUP BY symbol)
+) p ON k.symbol = p.symbol
 """
 
 try:
@@ -275,8 +283,12 @@ if not df.empty:
             if "Buy" in rating: header_color = "green"
             elif "Sell" in rating: header_color = "red"
             
+            # Price Info
+            curr_price = f"₹{latest_row['current_price']}" if pd.notnull(latest_row['current_price']) else ""
+            price_segment = f" | Price: **{curr_price}**" if curr_price else ""
+            
             # Use blue color for stock name to make it stand out
-            expand_label = f":blue[**{stock}**] | Rating: :{header_color}[{rating}] | Target: {target} | *Last Update: {latest_row['display_date']}*"
+            expand_label = f":blue[**{stock}**]{price_segment} | Rating: :{header_color}[{rating}] | Target: {target} | *Last Update: {latest_row['display_date']}*"
             
             with st.expander(expand_label, expanded=True if selected_stocks else False):
                 # Mobile-Friendly List View (Vertical Stack)
