@@ -33,93 +33,79 @@ meta_text = "#ccc"
 
 st.markdown(f"""
 <style>
-    /* App Background */
-    .stApp {{
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    
+    html, body, [data-testid="stAppViewContainer"] {{
+        font-family: 'Inter', sans-serif;
         background-color: {main_bg};
         color: {text_color};
     }}
-    
-    /* Force date column to be single line */
-    td:nth-child(1) {{ white-space: nowrap !important; }}
-    /* General table styling */
-    td {{ vertical-align: middle !important; }}
-    
-    /* Hide Streamlit Branding - Aggressive */
-    #MainMenu {{display: none !important;}}
-    footer {{display: none !important;}}
-    header {{display: none !important;}}
-    
-    /* Hide 'Hosted with Streamlit' Badge specifically */
-    div[class*="viewerBadge"] {{display: none !important;}}
-    .stApp > header {{display: none !important;}}
-    .STHeader {{display: none !important;}}
-    
-    /* Reduce Top Spacing - Aggressive */
+
+    /* Global Transitions */
+    * {{ transition: all 0.2s ease-in-out; }}
+
+    /* Hide Streamlit Branding */
+    #MainMenu, footer, header, div[class*="viewerBadge"], .stApp > header, .STHeader {{
+        display: none !important;
+    }}
+
+    /* Layout Spacing */
     .block-container {{
-        padding-top: 1rem !important;
+        padding-top: 1.5rem !important;
         padding-bottom: 2rem !important;
+        max-width: 1200px;
     }}
-    /* Header Formatting */
+
+    /* Header Styling */
     h2 {{
-        margin-top: 0 !important;
-        padding-top: 0 !important;
+        font-weight: 700 !important;
+        letter-spacing: -0.02em !important;
         color: #00d4ff !important;
+        margin-bottom: 1rem !important;
     }}
+
+    /* Glassmorphism Cards & Inputs */
+    .stMultiSelect, .stDateInput, div[data-testid="stExpander"] {{
+        background: rgba(255, 255, 255, 0.03) !important;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.05) !important;
+        border-radius: 12px !important;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2) !important;
+    }}
+
     /* Premium Button Styling */
     .stButton > button {{
-        background-color: transparent !important;
+        background: linear-gradient(135deg, rgba(0, 212, 255, 0.1), rgba(0, 212, 255, 0.05)) !important;
         color: #00d4ff !important;
-        border: 1px solid rgba(0, 212, 255, 0.4) !important;
-        border-radius: 8px !important;
-        transition: all 0.3s ease !important;
-        font-weight: 500 !important;
+        border: 1px solid rgba(0, 212, 255, 0.3) !important;
+        border-radius: 10px !important;
+        padding: 0.5rem 1rem !important;
+        font-weight: 600 !important;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-size: 0.75rem !important;
     }}
+
     .stButton > button:hover {{
-        background-color: rgba(0, 212, 255, 0.1) !important;
+        background: rgba(0, 212, 255, 0.2) !important;
         border-color: #00d4ff !important;
-        transform: translateY(-1px) !important;
+        box-shadow: 0 0 15px rgba(0, 212, 255, 0.2) !important;
+        transform: translateY(-2px);
     }}
-    /* Input Styling */
-    .stMultiSelect, .stDateInput {{
-        background-color: rgba(255, 255, 255, 0.05) !important;
-        border-radius: 8px !important;
-    }}
+
+    /* Inputs Focus & Selection */
     .stMultiSelect [data-baseweb="tag"] {{
         background-color: #00d4ff !important;
-        color: black !important;
+        color: #000 !important;
+        border-radius: 6px !important;
+        font-weight: 600 !important;
     }}
-    
-    /* Multiselect dropdown styling - rotate arrow on expand */
-    .stMultiSelect [data-baseweb="select"] [data-baseweb="icon"] svg {{
-        transition: transform 0.3s ease !important;
-    }}
-    .stMultiSelect [aria-expanded="true"] [data-baseweb="icon"] svg {{
-        transform: rotate(180deg) !important;
-    }}
-    /* Alternative selectors for arrow rotation */
-    .stMultiSelect div[role="button"][aria-expanded="true"] svg {{
-        transform: rotate(180deg) !important;
-    }}
-    .stMultiSelect div[role="button"] svg {{
-        transition: transform 0.3s ease !important;
-    }}
-    
-    <script>
-    // Force arrow rotation on multiselect expand
-    document.addEventListener('DOMContentLoaded', function() {{
-        const observer = new MutationObserver(function(mutations) {{
-            document.querySelectorAll('.stMultiSelect div[role="button"]').forEach(function(btn) {{
-                const isExpanded = btn.getAttribute('aria-expanded') === 'true';
-                const svg = btn.querySelector('svg');
-                if (svg) {{
-                    svg.style.transform = isExpanded ? 'rotate(180deg)' : 'rotate(0deg)';
-                    svg.style.transition = 'transform 0.3s ease';
-                }}
-            }});
-        }});
-        observer.observe(document.body, {{ attributes: true, subtree: true, attributeFilter: ['aria-expanded'] }});
-    }});
-    </script>
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {{ width: 8px; height: 8px; }}
+    ::-webkit-scrollbar-track {{ background: rgba(255, 255, 255, 0.02); }}
+    ::-webkit-scrollbar-thumb {{ background: rgba(0, 212, 255, 0.2); border-radius: 4px; }}
+    ::-webkit-scrollbar-thumb:hover {{ background: rgba(0, 212, 255, 0.4); }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -295,51 +281,53 @@ if not df.empty:
             with st.expander(expand_label, expanded=True if selected_stocks else False):
                 # Mobile-Friendly List View (Vertical Stack)
                 for _, row in stock_data.iterrows():
-                    # Card Container Start - Added colorful accent border-left
+                    # Card Container Start - Modern glassmorphic card
                     st.markdown(f"""
                     <div style="
-                        border: 1px solid {border_color};
+                        background: rgba(255, 255, 255, 0.02);
+                        border: 1px solid rgba(255, 255, 255, 0.05);
                         border-left: 4px solid #00d4ff;
-                        border-radius: 8px;
-                        padding: 16px;
-                        margin-bottom: 12px;
-                        background-color: {card_bg};
-                        transition: transform 0.2s;
+                        border-radius: 12px;
+                        padding: 1.25rem;
+                        margin-bottom: 1rem;
+                        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
                     ">
-                        <div style="font-size: 1.1em; font-weight: 600; margin-bottom: 8px;">
-                             <a href="{row['url']}" target="_blank" style="text-decoration: none; color: #00d4ff">{row['title']}</a>
+                        <div style="font-size: 1.05rem; font-weight: 600; line-height: 1.4; margin-bottom: 0.75rem;">
+                             <a href="{row['url']}" target="_blank" style="text-decoration: none; color: #00d4ff; transition: color 0.2s;">{row['title']}</a>
                         </div>
                     """, unsafe_allow_html=True)
                     
-                    # Logic for Rating Badge
+                    # Sentiment-aware Badge Styling
                     rat = row.get('rating', 'Unknown')
-                    bg_badge = "#666"
-                    if "Buy" in rat: bg_badge = "#28a745"
-                    elif "Sell" in rat: bg_badge = "#dc3545"
-                    elif "Hold" in rat: bg_badge = "#ffc107"
+                    bg_badge = "rgba(100, 100, 100, 0.2)"
+                    text_color_badge = "#ccc"
+                    if "Buy" in rat: 
+                        bg_badge = "rgba(40, 167, 69, 0.15)"
+                        text_color_badge = "#28a745"
+                    elif "Sell" in rat: 
+                        bg_badge = "rgba(220, 53, 69, 0.15)"
+                        text_color_badge = "#dc3545"
+                    elif "Hold" in rat: 
+                        bg_badge = "rgba(255, 193, 7, 0.15)"
+                        text_color_badge = "#ffc107"
                     
-                    text_badge = '#000' if 'Hold' in rat else '#fff'
-                    rat_badge = f"<span style='background-color: {bg_badge}; color: {text_badge}; padding: 2px 8px; border-radius: 12px; font-size: 0.8em; margin-right: 8px;'>{rat}</span>"
+                    rat_badge = f"<span style='background: {bg_badge}; color: {text_color_badge}; padding: 4px 10px; border-radius: 8px; font-size: 0.75rem; font-weight: 600; border: 1px solid {bg_badge};'>{rat}</span>"
 
                     target_str = ""
                     if pd.notnull(row['target_price']) and row['target_price'] > 0:
                         fmt_tp = f"{int(row['target_price']):,}"
-                        target_str = f"<span style='margin-left: 8px; color: {text_color};'>🎯 <b>₹{fmt_tp}</b></span>"
+                        target_str = f"<span style='margin-left: 12px; font-size: 0.85rem; color: {text_color}; opacity: 0.9;'>🎯 <b>₹{fmt_tp}</b></span>"
 
-                    # Metadata Line
+                    # Metadata Row
                     meta_html = (
-                        f"<div style='margin-top: 6px; display: flex; align-items: center; flex-wrap: wrap; font-size: 0.9em; color: {meta_text};'>"
+                        f"<div style='display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 0.5rem;'>"
                         f"{rat_badge}"
                         f"{target_str}"
-                        f"<span style='margin: 0 10px; opacity: 0.5;'>|</span>"
-                        f"<span>{row['source']}</span>"
-                        f"<span style='margin: 0 10px; opacity: 0.5;'>|</span>"
-                        f"<span>{row['display_date']}</span>"
+                        f"<div style='flex-grow: 1;'></div>"
+                        f"<div style='font-size: 0.75rem; color: {meta_text}; opacity: 0.7;'>{row['source']} • {row['display_date']}</div>"
                         f"</div>"
                     )
                     st.markdown(meta_html, unsafe_allow_html=True)
-                    
-                    # Close Card
                     st.markdown("</div>", unsafe_allow_html=True)
 
 else:
