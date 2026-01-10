@@ -178,7 +178,7 @@ else:
         df = df.sort_values('date_dt', ascending=False).drop_duplicates(subset=['stock_name', 'url', 'broker'])
 
         # --- FILTERS (Back on Main Page) ---
-        with st.expander("🔍 Filter & Search Options", expanded=True):
+        with st.expander("🔍 Filter & Search Options", expanded=False):
             all_stocks = sorted(df['stock_name'].unique())
             c_s1, c_s2 = st.columns([1, 4])
             with c_s1:
