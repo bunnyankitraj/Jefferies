@@ -2,6 +2,7 @@ import sqlite_utils
 import sqlite3
 import os
 from datetime import datetime
+import pytz
 
 DATABASE_PATH = "data/market_data.db"
 
