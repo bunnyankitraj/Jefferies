@@ -35,9 +35,17 @@ def init_db():
             "stock_ticker": str,
             "stock_name": str,
             "rating": str,  # "Buy", "Sell", "Hold", "Unknown"
+            "broker": str,  # "Jefferies" or "J.P. Morgan"
             "target_price": float,
             "entry_date": str
         }, pk="id", foreign_keys=[("article_id", "news_articles", "id")])
+    else:
+        # Migration: Ensure broker column exists
+        if "broker" not in db["stock_ratings"].columns_dict:
+            db["stock_ratings"].add_column("broker", str)
+        
+        # Always attempt to backfill NULLs (idempotent)
+        db.execute("UPDATE stock_ratings SET broker = 'Jefferies' WHERE broker IS NULL")
 
     # Master Stock List Table
     if "known_stocks" not in db.table_names():
@@ -66,7 +74,7 @@ def save_article(db, title, url, published_date, source, raw_content=""):
                 "published_date": published_date,
                 "source": source,
                 "raw_content": raw_content,
-                "fetched_at": datetime.now().isoformat()
+                "fetched_at": datetime.now(pytz.utc).isoformat()
             }).last_rowid
             
         except sqlite3.IntegrityError:
@@ -77,15 +85,16 @@ def save_article(db, title, url, published_date, source, raw_content=""):
         print(f"Error saving article {url}: {e}")
         return None
 
-def save_rating(db, article_id, stock_name, rating, target_price):
-    # Prevent duplicate stock-article pairs
-    existing = list(db["stock_ratings"].rows_where("article_id = ? AND stock_name = ?", [article_id, stock_name]))
+def save_rating(db, article_id, stock_name, rating, target_price, broker):
+    # Prevent duplicate stock-article pairs for the same broker
+    existing = list(db["stock_ratings"].rows_where("article_id = ? AND stock_name = ? AND broker = ?", [article_id, stock_name, broker]))
     if not existing:
         db["stock_ratings"].insert({
             "article_id": article_id,
             "stock_ticker": stock_name.upper().replace(" ", ""),
             "stock_name": stock_name,
             "rating": rating,
+            "broker": broker,
             "target_price": target_price,
             "entry_date": datetime.now().date().isoformat()
         })

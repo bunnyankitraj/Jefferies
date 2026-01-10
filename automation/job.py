@@ -1,4 +1,4 @@
-from .news_fetcher import fetch_jefferies_news
+from .news_fetcher import fetch_news
 from .analyzer import analyze_article
 from .database import init_db, save_article, save_rating
 from dotenv import load_dotenv
@@ -11,58 +11,67 @@ def run_job():
     # 1. Init DB
     db = init_db()
     
-    # 2. Fetch News
-    articles = fetch_jefferies_news(days=2) # Look back 2 days to be safe
-    print(f"Fetched {len(articles)} articles.")
+    brokers = {
+        "Jefferies": [
+            "Jefferies India stock target",
+            "Jefferies upgrade India stock",
+            "Jefferies downgrade India stock",
+            "Jefferies maintain buy India"
+        ],
+        "JPMC": [
+            "JP Morgan India stock target",
+            "JP Morgan upgrade India stock",
+            "JP Morgan downgrade India stock",
+            "JP Morgan overweight India stock",
+            "J.P. Morgan India equity research"
+        ]
+    }
     
     new_ratings_count = 0
+    days_to_fetch = 2
     
-    for art in articles:
-        # 3. Save Article
-        # We skip if existing to avoid re-analysis duplicate work, 
-        # or we could just check if we analyzed it. 
-        # save_article handles deduplication by returning existing ID.
+    for broker_name, queries in brokers.items():
+        print(f"Processing {broker_name}...")
+        # 2. Fetch News
+        articles = fetch_news(broker_name, queries, days=days_to_fetch)
+        print(f"Fetched {len(articles)} articles for {broker_name}.")
         
-        art_id = save_article(db, art['title'], art['url'], art['published_date'], art['source'], art.get('desc', ''))
-        
-        if not art_id:
-            continue
+        for art in articles:
+            # 3. Save Article
+            art_id = save_article(db, art['title'], art['url'], art['published_date'], art['source'], art.get('desc', ''))
+            
+            if not art_id:
+                continue
 
-        # Check if we already have ratings for this article?
-        # For simplicity, we can just strictly rely on unique Art ID. 
-        # But if we improve analyzer, we might want to re-analyze. 
-        # For now, let's assume if it is NOT new (fetched previously), we blindly re-analyze 
-        # creates potential duplicates in 'stock_ratings'. 
-        # Ideally we check:
-        existing_ratings = list(db["stock_ratings"].rows_where("article_id = ?", [art_id]))
-        if existing_ratings:
-            # Already analyzed
-            continue
+            # Check if we already have ratings for this article AND this broker
+            existing_ratings = list(db["stock_ratings"].rows_where("article_id = ? AND broker = ?", [art_id, broker_name]))
+            if existing_ratings:
+                continue
+                
+            # 4. Analyze
+            ratings = analyze_article(art, broker_name=broker_name)
             
-        # 4. Analyze
-        ratings = analyze_article(art)
-        
-        for r in ratings:
-            raw_name = r.stock_name
-            valid_name = None
-            
-            # Validate against Master List
-            try:
-                # Clean and quote for FTS (dots/spaces break it)
-                clean_name = raw_name.replace(".", "").replace(",", "").replace("-", " ").replace("\"", "").replace("'", "")
-                search_term = f'"{clean_name}"'
-                results = list(db["known_stocks"].search(search_term, limit=1))
-                if results:
-                    valid_name = results[0]['company_name']
-            except Exception as e:
-                print(f"Validation Error: {e}")
-            
-            if valid_name:
-                print(f"Found Rating: {valid_name} ({r.rating}) in {art['title']}")
-                save_rating(db, art_id, valid_name, r.rating, r.target_price)
-                new_ratings_count += 1
-            else:
-                print(f"Skipped unknown stock: {raw_name}")
+            for r in ratings:
+                raw_name = r.stock_name
+                valid_name = None
+                
+                # Validate against Master List
+                try:
+                    # Clean and quote for FTS (dots/spaces break it)
+                    clean_name = raw_name.replace(".", "").replace(",", "").replace("-", " ").replace("\"", "").replace("'", "")
+                    search_term = f'"{clean_name}"'
+                    results = list(db["known_stocks"].search(search_term, limit=1))
+                    if results:
+                        valid_name = results[0]['company_name']
+                except Exception as e:
+                    print(f"Validation Error: {e}")
+                
+                if valid_name:
+                    print(f"Found Rating: {valid_name} ({r.rating}) from {broker_name} in {art['title']}")
+                    save_rating(db, art_id, valid_name, r.rating, r.target_price, broker_name)
+                    new_ratings_count += 1
+                else:
+                    print(f"Skipped unknown stock: {raw_name}")
             
     print(f"Job Finished. Added {new_ratings_count} new ratings.")
     print("-----------------------------------")

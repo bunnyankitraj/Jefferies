@@ -17,9 +17,9 @@ class StockRating:
     def __repr__(self):
         return f"<StockRating {self.stock_name} {self.rating} {self.target_price}>"
 
-def get_prompt(text):
+def get_prompt(text, broker_name):
     return f"""
-    You are a financial news analyzer specializing in 'Jefferies' equity research. 
+    You are a financial news analyzer specializing in '{broker_name}' equity research. 
     Analyze the following news snippet and extract structured data about stock ratings/recommendations.
     
     News Snippet:
@@ -46,7 +46,7 @@ def get_prompt(text):
     ]
     """
 
-def analyze_with_groq(text):
+def analyze_with_groq(text, broker_name):
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         return None
@@ -54,7 +54,7 @@ def analyze_with_groq(text):
     try:
         client = Groq(api_key=api_key)
         chat_completion = client.chat.completions.create(
-            messages=[{"role": "user", "content": get_prompt(text)}],
+            messages=[{"role": "user", "content": get_prompt(text, broker_name)}],
             model="llama-3.3-70b-versatile",
             temperature=0.0,
         )
@@ -66,7 +66,7 @@ def analyze_with_groq(text):
             print(f"Groq Error: {e}")
         return None
 
-def analyze_with_openai(text):
+def analyze_with_openai(text, broker_name):
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         print("Error: OPENAI_API_KEY not found.")
@@ -76,7 +76,7 @@ def analyze_with_openai(text):
         client = OpenAI(api_key=api_key)
         response = client.chat.completions.create(
             model="gpt-4o-mini", # Using mini for efficiency as fallback
-            messages=[{"role": "user", "content": get_prompt(text)}],
+            messages=[{"role": "user", "content": get_prompt(text, broker_name)}],
             temperature=0.0,
         )
         return response.choices[0].message.content.strip()
@@ -84,19 +84,19 @@ def analyze_with_openai(text):
         print(f"OpenAI Error: {e}")
         return None
 
-def analyze_article(article_data):
+def analyze_article(article_data, broker_name="Jefferies"):
     """
     Uses Groq LLM to analyze the article text, falling back to OpenAI if Groq fails.
     """
     text = f"Title: {article_data['title']}\nDescription: {article_data.get('desc', '')}"
     
     # Try Groq First
-    response_content = analyze_with_groq(text)
+    response_content = analyze_with_groq(text, broker_name)
     
     # Fallback to OpenAI
     if not response_content:
-        print("Falling back to OpenAI for analysis...")
-        response_content = analyze_with_openai(text)
+        print(f"Falling back to OpenAI for {broker_name} analysis...")
+        response_content = analyze_with_openai(text, broker_name)
         
     if not response_content:
         return []

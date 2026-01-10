@@ -3,23 +3,12 @@ import dateparser
 from datetime import datetime
 import time
 
-def fetch_jefferies_news(days=7):
+def fetch_news(broker_name, queries, days=7):
     """
-    Fetches news about 'Jefferies' and 'India' or 'Stocks' from the last N days.
+    Fetches news about a specific broker and India/Stocks from the last N days.
     """
     gn = GoogleNews(lang='en', region='IN')
-    # ... (rest of configuration)
-
-    # Note: dateparser is heavy, but useful for '5 hours ago'
-    
     gn.set_period(f'{days}d')
-    
-    queries = [
-        "Jefferies India stock target",
-        "Jefferies upgrade India stock",
-        "Jefferies downgrade India stock",
-        "Jefferies maintain buy India"
-    ]
     
     all_articles = []
     seen_urls = set()
@@ -27,7 +16,7 @@ def fetch_jefferies_news(days=7):
     
     BLACKLIST_SOURCES = ["scanx.trade", "market screener", "marketscreener"]
 
-    print(f"Fetching news for queries: {queries}")
+    print(f"Fetching news for {broker_name} with queries: {queries}")
 
     for query in queries:
         try:
@@ -69,7 +58,8 @@ def fetch_jefferies_news(days=7):
                 }
                 
                 text_blob = (article['title'] + " " + article['desc']).lower()
-                if "jefferies" in text_blob:
+                # Check for broker name in text
+                if broker_name.lower() in text_blob or (broker_name == "JPMC" and ("jp morgan" in text_blob or "jpmorgan" in text_blob or "jpmc" in text_blob)):
                     all_articles.append(article)
             
             gn.clear()
