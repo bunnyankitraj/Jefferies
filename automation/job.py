@@ -21,9 +21,33 @@ def run_job():
         "JPMC": [
             "JP Morgan India stock target",
             "JP Morgan upgrade India stock",
-            "JP Morgan downgrade India stock",
             "JP Morgan overweight India stock",
             "J.P. Morgan India equity research"
+        ],
+        "Goldman Sachs": [
+            "Goldman Sachs India stock target",
+            "Goldman Sachs upgrade India stock",
+            "Goldman Sachs India equity research"
+        ],
+        "ICICI Securities": [
+            "ICICI Securities stock target buy",
+            "ICICI Securities research report India",
+            "ICICI Securities upgrade rating"
+        ],
+        "Kotak": [
+            "Kotak Institutional Equities stock target",
+            "Kotak Securities buy rating India",
+            "Kotak Investment Banking research"
+        ],
+        "Axis Capital": [
+            "Axis Capital India stock target",
+            "Axis Capital research report",
+            "Axis Capital buy rating"
+        ],
+        "JM Financial": [
+            "JM Financial stock target buy",
+            "JM Financial research India",
+            "JM Financial upgrade rating"
         ]
     }
     
@@ -68,7 +92,7 @@ def run_job():
                 
                 if valid_name:
                     print(f"Found Rating: {valid_name} ({r.rating}) from {broker_name} in {art['title']}")
-                    save_rating(db, art_id, valid_name, r.rating, r.target_price, broker_name)
+                    save_rating(db, art_id, valid_name, r.rating, r.target_price, broker_name, currency=r.currency)
                     new_ratings_count += 1
                 else:
                     print(f"Skipped unknown stock: {raw_name}")

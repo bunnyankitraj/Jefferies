@@ -2,6 +2,11 @@ import streamlit as st
 import pandas as pd
 import os
 import sys
+import threading
+import time
+
+# --- CONFIGURATION FLAGS ---
+ENABLE_POWER_TOOLS = False  # Toggle for Watchlist, Deep Search, and Upside Calculator
 
 # Ensure current directory is in sys.path for Cloud imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -40,7 +45,7 @@ def clean_url(url):
     url = url.split('&ved=')[0].split('&usg=')[0]
     return url
 
-st.set_page_config(page_title="Jefferies India Tracker", layout="wide")
+st.set_page_config(page_title="Professional Stock Research Dashboard", layout="wide")
 
 # Theme Variables
 main_bg = "#0e1117"
@@ -71,13 +76,32 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("Jefferies India Stock Tracker")
+st.title("Professional Stock Research Dashboard")
 
 # Data Loading Initialization
 db = get_db()
 
 # Sidebar (Keep it for advanced users)
+def get_currency_symbol(code):
+    if code == "USD": return "$"
+    if code == "EUR": return "€"
+    if code == "GBP": return "£"
+    return "₹" # Default INR
+
 st.sidebar.header("Controls")
+
+if 'focus_stock' not in st.session_state:
+    st.session_state.focus_stock = None
+
+if 'watchlist' not in st.session_state:
+    st.session_state.watchlist = set()
+
+if st.session_state.focus_stock:
+    st.sidebar.info(f"📍 Viewing: **{st.session_state.focus_stock}**")
+    if st.sidebar.button("Clear Focus & Show All"):
+        st.session_state.focus_stock = None
+        st.rerun()
+
 if st.sidebar.button("🔄 Force Refresh"):
     st.rerun()
 
@@ -128,8 +152,8 @@ else:
     # Query Data
     query = """
     SELECT 
-        r.entry_date, r.stock_name, r.rating, r.target_price, r.broker,
-        a.title, a.source, a.published_date, a.url, a.fetched_at
+        r.entry_date, r.stock_name, r.rating, r.target_price, r.currency, r.broker,
+        a.title, a.source, a.published_date, a.url, a.fetched_at, a.raw_content
     FROM stock_ratings r
     JOIN news_articles a ON r.article_id = a.id
     """
@@ -147,12 +171,12 @@ else:
         DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         df = df[~df['stock_name'].isin(DAYS)]
         
-        df['date_dt'] = pd.to_datetime(df['published_date'], errors='coerce')
+        df['date_dt'] = pd.to_datetime(df['published_date'], errors='coerce', format='ISO8601')
         
         def to_ist(dt):
             if pd.isnull(dt): return dt
             if isinstance(dt, str):
-                dt = pd.to_datetime(dt, errors='coerce')
+                dt = pd.to_datetime(dt, errors='coerce', format='ISO8601')
             if dt is None or pd.isnull(dt): return dt
             
             if dt.tzinfo is None:
@@ -177,38 +201,104 @@ else:
         df['url'] = df['url'].apply(clean_url)
         df = df.sort_values('date_dt', ascending=False).drop_duplicates(subset=['stock_name', 'url', 'broker'])
 
+        # Sidebar Monitoring Table
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("🏢 Broker Activity")
+        mon_df = df.groupby('broker')['fetched_dt'].max().reset_index()
+        mon_df['Last Update'] = mon_df['fetched_dt'].dt.strftime('%d %b, %I:%M %p')
+        st.sidebar.table(mon_df[['broker', 'Last Update']])
+
         # --- FILTERS (Back on Main Page) ---
-        with st.expander("🔍 Filter & Search Options", expanded=False):
+        with st.expander("Dashboard Command Center (Filters)", expanded=False):
+            st.markdown("#### 🏢 Core Selection")
             all_stocks = sorted(df['stock_name'].unique())
-            c_s1, c_s2 = st.columns([1, 4])
-            with c_s1:
-                all_stocks_toggle = st.checkbox("Select All Stocks", value=False)
-            with c_s2:
-                default_stocks = all_stocks if all_stocks_toggle else []
-                selected_stocks = st.multiselect("Stocks", options=all_stocks, default=default_stocks)
-            
-            c1, c2 = st.columns(2)
-            with c1:
-                available_ratings = sorted(df['rating'].fillna("Unknown").unique().tolist())
-                all_ratings_toggle = st.checkbox("Select All Ratings", value=not bool(st.session_state.get('sel_ratings')))
-                default_ratings = available_ratings if all_ratings_toggle else []
-                sel_ratings = st.multiselect("Ratings", options=available_ratings, default=default_ratings)
-            with c2:
-                available_brokers = sorted(df['broker'].fillna("Jefferies").unique().tolist())
-                all_brokers_toggle = st.checkbox("Select All Brokers", value=not bool(st.session_state.get('sel_brokers')))
-                default_brokers = available_brokers if all_brokers_toggle else []
-                sel_brokers = st.multiselect("Brokers", options=available_brokers, default=default_brokers)
+            available_ratings = sorted(df['rating'].fillna("Unknown").unique().tolist())
+            available_brokers = sorted(df['broker'].fillna("Jefferies").unique().tolist())
+
+            # Grid Row 1: Stock Selection & Search
+            if ENABLE_POWER_TOOLS:
+                c_s1, c_s2, c_s3 = st.columns([1, 2, 2])
+                with c_s1:
+                    all_stocks_toggle = st.checkbox("Select All Stocks", value=False)
+                with c_s2:
+                    default_stocks = all_stocks if all_stocks_toggle else []
+                    selected_stocks = st.multiselect("Pick Stocks", options=all_stocks, default=default_stocks)
+                with c_s3:
+                    keyword_search = st.text_input("🔍 Catalyst Deep Search", placeholder="e.g. Dividend, Margins, Upgrade", help="Search article titles and descriptions for specific catalysts.")
+            else:
+                c_s1, c_s2 = st.columns([1, 4])
+                with c_s1:
+                    all_stocks_toggle = st.checkbox("Select All Stocks", value=False)
+                with c_s2:
+                    default_stocks = all_stocks if all_stocks_toggle else []
+                    selected_stocks = st.multiselect("Pick Stocks", options=all_stocks, default=default_stocks)
+                keyword_search = None
+
+            # Grid Row 2: Ratings, Brokers & Watchlist
+            if ENABLE_POWER_TOOLS:
+                c1, c2, c3 = st.columns([2, 2, 1])
+                with c1:
+                    all_ratings_toggle = st.checkbox("All Ratings", value=False, key="all_rat")
+                    default_ratings = available_ratings if all_ratings_toggle else []
+                    sel_ratings = st.multiselect("Ratings", options=available_ratings, default=default_ratings)
+                with c2:
+                    all_brokers_toggle = st.checkbox("All Brokers", value=False, key="all_brok")
+                    default_brokers = available_brokers if all_brokers_toggle else []
+                    sel_brokers = st.multiselect("Brokers", options=available_brokers, default=default_brokers)
+                with c3:
+                    st.write("") # Spacer
+                    watchlist_only = st.checkbox("⭐ Watchlist Only", value=False, help="Show only stocks you have starred.")
+            else:
+                c1, c2 = st.columns(2)
+                with c1:
+                    all_ratings_toggle = st.checkbox("All Ratings", value=False, key="all_rat_v2")
+                    default_ratings = available_ratings if all_ratings_toggle else []
+                    sel_ratings = st.multiselect("Ratings", options=available_ratings, default=default_ratings)
+                with c2:
+                    all_brokers_toggle = st.checkbox("All Brokers", value=False, key="all_brok_v2")
+                    default_brokers = available_brokers if all_brokers_toggle else []
+                    sel_brokers = st.multiselect("Brokers", options=available_brokers, default=default_brokers)
+                watchlist_only = False
             
             st.divider()
-            c3, c4 = st.columns(2)
-            with c3:
-                date_preset = st.radio("Date Range", ["All Time", "Last 24 Hours", "Last 7 Days", "Custom"], horizontal=True)
-            with c4:
+            
+            # Row 3: Performance Dials
+            st.markdown("#### 🎯 Performance Dials")
+            conv_options = {
+                "All": 1,
+                "Strong (2+)": 2,
+                "High (3+)": 3,
+                "Universal (4+)": 4
+            }
+            conv_label = st.radio("Conviction Power (Min. Broker Agreement)", 
+                                  options=list(conv_options.keys()), 
+                                  horizontal=True,
+                                  help="Isolates stocks that have been rated by at least N different brokers.")
+            min_brokers = conv_options[conv_label]
+            
+            p1, p2, p3, p4 = st.columns(4)
+            with p1:
+                show_only_with_target = st.checkbox("🎯 Targets Only", value=False, help="Show only stocks with explicit numerical price targets.")
+            with p2:
+                strong_buy_only = st.checkbox("🚀 Strong Buy", value=False, help="Filter for only 'Buy' and 'Outperform' ratings.")
+            with p3:
+                fresh_today = st.checkbox("⏰ Fresh Today", value=False, help="Show only updates from the last 24 hours.")
+            with p4:
+                contrarian_radar = st.checkbox("⚖️ Contrarian", value=False, help="Find stocks with conflicting ratings (e.g., Buy vs Sell).")
+
+            st.divider()
+            
+            # Row 4: Time Horizon
+            st.markdown("#### ⏳ Time Horizon")
+            ct1, ct2 = st.columns([3, 2])
+            with ct1:
+                date_preset = st.radio("Lookback Period", ["All Time", "Last 24 Hours", "Last 7 Days", "Custom"], horizontal=True)
+            with ct2:
                 date_range = None
                 if date_preset == "Custom":
                     min_d_val = df['date_dt'].min().date()
                     max_d_val = date.today()
-                    date_range = st.date_input("Range", value=(min_d_val, max_d_val))
+                    date_range = st.date_input("Select Range", value=(min_d_val, max_d_val))
 
         # Apply Filters
         f_df = df.copy()
@@ -227,13 +317,76 @@ else:
         elif date_preset == "Custom" and isinstance(date_range, tuple) and len(date_range) == 2:
             f_df = f_df[(f_df['date_dt'].dt.date >= date_range[0]) & (f_df['date_dt'].dt.date <= date_range[1])]
 
+        # Apply Focus Mode
+        if st.session_state.get('focus_stock'):
+            f_df = f_df[f_df['stock_name'] == st.session_state.focus_stock]
+
+        # Apply Conviction Agreement Filter
+
+        # Apply Conviction Agreement Filter
+        if min_brokers > 1:
+            # Count unique brokers per stock in the current filtered set
+            broker_counts = f_df.groupby('stock_name')['broker'].nunique()
+            qualified_stocks = broker_counts[broker_counts >= min_brokers].index
+            f_df = f_df[f_df['stock_name'].isin(qualified_stocks)]
+            
+        if show_only_with_target:
+            f_df = f_df[pd.notnull(f_df['target_price']) & (f_df['target_price'] > 0)]
+
+        if strong_buy_only:
+            f_df = f_df[f_df['rating'].isin(['Buy', 'Outperform'])]
+
+        if fresh_today:
+            f_df = f_df[f_df['date_dt'] >= (now_ist - timedelta(hours=24))]
+
+        if contrarian_radar:
+            # Find stocks with at least one Buy/Outperform and at least one Sell/Underperform
+            buy_ratings = ['Buy', 'Outperform']
+            sell_ratings = ['Sell', 'Underperform']
+            
+            buy_stocks = set(f_df[f_df['rating'].isin(buy_ratings)]['stock_name'])
+            sell_stocks = set(f_df[f_df['rating'].isin(sell_ratings)]['stock_name'])
+            contrarian_stocks = buy_stocks.intersection(sell_stocks)
+            f_df = f_df[f_df['stock_name'].isin(contrarian_stocks)]
+
+        if keyword_search:
+            f_df = f_df[
+                f_df['title'].str.contains(keyword_search, case=False, na=False) | 
+                f_df['raw_content'].str.contains(keyword_search, case=False, na=False)
+            ]
+
+        if watchlist_only:
+            f_df = f_df[f_df['stock_name'].isin(st.session_state.watchlist)]
+
         if f_df.empty:
             st.warning("No matches found.")
         else:
+            # --- HOTTEST PICKS ---
+            buy_only = f_df[f_df['rating'] == 'Buy']
+            if not buy_only.empty:
+                hot_picks = buy_only['stock_name'].value_counts().head(5)
+                with st.expander("🔥 Consensus Hottest Picks (Click to focus)", expanded=False):
+                    hp_cols = st.columns(len(hot_picks))
+                    for i, (s_name, count) in enumerate(hot_picks.items()):
+                        with hp_cols[i]:
+                            # Make it a button that sets focus (Toggles: deselects if already selected)
+                            if st.button(f"**{s_name}**\n\n{count} Buy Calls", key=f"hp_{s_name}", use_container_width=True):
+                                if st.session_state.focus_stock == s_name:
+                                    st.session_state.focus_stock = None
+                                else:
+                                    st.session_state.focus_stock = s_name
+                                st.rerun()
+                st.divider()
+
             # Expansion Control (Main Page)
             col_exp1, col_exp2, col_exp3 = st.columns([2, 5, 2])
             with col_exp1:
-                expand_all = st.checkbox("Expand All", value=False)
+                # Default to expanded if focusing on a specific stock
+                def_exp = True if st.session_state.get('focus_stock') else False
+                expand_all = st.checkbox("Expand All", value=def_exp)
+            with col_exp2:
+                total_unique_stocks = f_df['stock_name'].nunique()
+                st.markdown(f"<div style='text-align: center; margin-top: 5px; font-weight: 600;'>Showing {total_unique_stocks} unique stocks</div>", unsafe_allow_html=True)
             with col_exp3:
                 # Add Data Export
                 csv = f_df.to_csv(index=False).encode('utf-8')
@@ -255,29 +408,70 @@ else:
                 # Get the absolute most recent news time for this stock in IST
                 latest_time_str = s_data.iloc[0]['date_dt'].strftime('%d %b, %I:%M %p')
                 
-                # Check for Combined Signal (Jefferies + JPMC both Buy)
-                jefferies_buy = s_data[(s_data['broker'] == 'Jefferies') & (s_data['rating'] == 'Buy')]
-                jpm_buy = s_data[(s_data['broker'] == 'JPMC') & (s_data['rating'] == 'Buy')]
+                # Check for Combined Signal (Any 2+ brokers both Buy)
+                buy_ratings = s_data[s_data['rating'] == 'Buy']
+                participating_brokers = sorted(buy_ratings['broker'].unique().tolist())
                 
-                is_combined_up = not jefferies_buy.empty and not jpm_buy.empty
+                # Broker Badge System for label
+                broker_tags = []
+                for b in sorted(s_data['broker'].unique()):
+                    b_ratings = s_data[s_data['broker'] == b]['rating'].tolist()
+                    main_r = b_ratings[0]
+                    color = "gray"
+                    if "Buy" in main_r: color = "green"
+                    elif "Sell" in main_r: color = "red"
+                    elif "Hold" in main_r: color = "orange"
+                    broker_tags.append(f":{color}[{b}]")
+                
+                tags_str = " | ".join(broker_tags)
+                
+                is_combined_up = len(participating_brokers) >= 2
                 top = s_data.iloc[0]
                 
                 if is_combined_up:
-                    combined_target = min(jefferies_buy['target_price'].min(), jpm_buy['target_price'].min())
-                    tp_str = f"₹{combined_target:,.0f}" if pd.notnull(combined_target) else "N/A"
-                    label = f"🚀 :blue[**{stock}**] | Rating: :green[**BUY**] | Target: **{tp_str}** | 🕒 {latest_time_str}"
+                    combined_target = buy_ratings['target_price'].min()
+                    # Use the currency of the first participating broker for the label
+                    cur_code = buy_ratings.iloc[0].get('currency', 'INR')
+                    sym = get_currency_symbol(cur_code)
+                    tp_str = f"{sym}{combined_target:,.0f}" if pd.notnull(combined_target) else "N/A"
+                    label = f"🚀 **x{len(participating_brokers)}** :blue[**{stock}**] | {tags_str} | Target: **{tp_str}** | 🕒 {latest_time_str}"
                 else:
-                    h_c = "gray"
-                    if "Buy" in top['rating']: h_c = "green"
-                    elif "Sell" in top['rating']: h_c = "red"
-                    elif "Hold" in top['rating']: h_c = "orange"
-                    
-                    tp = f"₹{top['target_price']:,.0f}" if pd.notnull(top['target_price']) else "N/A"
-                    label = f":blue[**{stock}**] | Rating: :{h_c}[{top['rating']}] | Target: {tp} ({top['broker']}) | 🕒 {latest_time_str}"
+                    cur_code = top.get('currency', 'INR')
+                    sym = get_currency_symbol(cur_code)
+                    tp = f"{sym}{top['target_price']:,.0f}" if pd.notnull(top['target_price']) else "N/A"
+                    label = f":blue[**{stock}**] | {tags_str} | Target: {tp} | 🕒 {latest_time_str}"
                 
                 with st.expander(label, expanded=expand_all):
+                    # --- POWER TOOLS: WATCHLIST & UPSIDE ---
+                    if ENABLE_POWER_TOOLS:
+                        pt1, pt2 = st.columns([1, 2])
+                        with pt1:
+                            is_starred = stock in st.session_state.watchlist
+                            star_btn = st.button("⭐ Unstar" if is_starred else "☆ Star", key=f"star_{stock}", use_container_width=True)
+                            if star_btn:
+                                if is_starred: st.session_state.watchlist.remove(stock)
+                                else: st.session_state.watchlist.add(stock)
+                                st.rerun()
+                        
+                        with pt2:
+                            target_for_calc = combined_target if is_combined_up else top['target_price']
+                            if pd.notnull(target_for_calc) and target_for_calc > 0:
+                                calc_cols = st.columns([2, 2])
+                                with calc_cols[0]:
+                                    cmp = st.number_input("CMP", value=0.0, step=1.0, key=f"cmp_{stock}", label_visibility="collapsed", placeholder="Enter CMP")
+                                with calc_cols[1]:
+                                    if cmp > 0:
+                                        upside = ((target_for_calc / cmp) - 1) * 100
+                                        color = "green" if upside > 15 else "white"
+                                        st.markdown(f"**{upside:.1f}% Upside**", help=f"Target: {target_for_calc}")
+                                    else:
+                                        st.caption("Enter Price for %")
+                        
+                        st.divider()
+
                     if is_combined_up:
-                        st.info(f"Both Jefferies and JPMC have issued a **BUY** rating for {stock}. Status is **BUY** and Target is the minimum: **{tp_str}**. (Last updated: {latest_time_str})")
+                        brokers_str = ", ".join(participating_brokers)
+                        st.info(f"Multiple brokers ({brokers_str}) have issued a **BUY** rating for {stock}. Status is **BUY** and Target is the minimum: **{tp_str}**. (Last updated: {latest_time_str})")
                     
                     for _, row in s_data.iterrows():
                         st.markdown(f"""
@@ -294,7 +488,8 @@ else:
                         elif "Hold" in rat: bg = "#fb8c00" # Orange/Amber
                         
                         c_tc = '#fff'
-                        fmt_tp = f"₹{int(row['target_price']):,}" if pd.notnull(row['target_price']) else ""
+                        sym = get_currency_symbol(row.get('currency', 'INR'))
+                        fmt_tp = f"{sym}{int(row['target_price']):,}" if pd.notnull(row['target_price']) else ""
                         
                         meta_html = (
                             f"<div style='font-size: 0.9em; color: {meta_text};'>"

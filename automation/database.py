@@ -9,7 +9,9 @@ DATABASE_PATH = "data/market_data.db"
 def get_db():
     # Ensure directory exists for Cloud deployment
     os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
-    return sqlite_utils.Database(DATABASE_PATH)
+    # Using a 30s timeout to handle concurrent access from background tasks
+    conn = sqlite3.connect(DATABASE_PATH, timeout=30)
+    return sqlite_utils.Database(conn)
 
 def init_db():
     db = get_db()
@@ -38,15 +40,17 @@ def init_db():
             "rating": str,  # "Buy", "Sell", "Hold", "Unknown"
             "broker": str,  # "Jefferies" or "J.P. Morgan"
             "target_price": float,
+            "currency": str, # "INR", "USD", etc.
             "entry_date": str
         }, pk="id", foreign_keys=[("article_id", "news_articles", "id")])
     else:
         # Migration: Ensure broker column exists
-        if "broker" not in db["stock_ratings"].columns_dict:
-            db["stock_ratings"].add_column("broker", str)
+        if "currency" not in db["stock_ratings"].columns_dict:
+            db["stock_ratings"].add_column("currency", str)
         
         # Always attempt to backfill NULLs (idempotent)
         db.execute("UPDATE stock_ratings SET broker = 'Jefferies' WHERE broker IS NULL")
+        db.execute("UPDATE stock_ratings SET currency = 'INR' WHERE currency IS NULL")
 
     # Master Stock List Table
     if "known_stocks" not in db.table_names():
@@ -86,7 +90,7 @@ def save_article(db, title, url, published_date, source, raw_content=""):
         print(f"Error saving article {url}: {e}")
         return None
 
-def save_rating(db, article_id, stock_name, rating, target_price, broker):
+def save_rating(db, article_id, stock_name, rating, target_price, broker, currency="INR"):
     # Prevent duplicate stock-article pairs for the same broker
     existing = list(db["stock_ratings"].rows_where("article_id = ? AND stock_name = ? AND broker = ?", [article_id, stock_name, broker]))
     if not existing:
@@ -97,5 +101,6 @@ def save_rating(db, article_id, stock_name, rating, target_price, broker):
             "rating": rating,
             "broker": broker,
             "target_price": target_price,
+            "currency": currency,
             "entry_date": datetime.now().date().isoformat()
         })

@@ -9,10 +9,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class StockRating:
-    def __init__(self, stock_name, rating, target_price):
+    def __init__(self, stock_name, rating, target_price, currency="INR"):
         self.stock_name = stock_name
         self.rating = rating
         self.target_price = target_price
+        self.currency = currency
         
     def __repr__(self):
         return f"<StockRating {self.stock_name} {self.rating} {self.target_price}>"
@@ -34,15 +35,17 @@ def get_prompt(text, broker_name):
        - Look for words like 'Buy', 'Sell', 'Hold', 'Accumulate' (map to Buy), 'Underperform' (map to Sell), 'Outperform' (map to Buy).
        - BIFURCATE DECISIVELY: If the article discusses a "Top Pick", "Favorite", or "Upgrade", mark as 'Buy'. If it discusses "Downgrade" or "Caution", mark as 'Sell'.
        - Only use 'Unknown' if there is absolutely no sentiment or recommendation expressed.
-    3. Target Price: Numeric per-share value in INR. 
-       - IMPORTANT: Do NOT extract total valuation or market cap figures (e.g. '1 lakh crore', '50 billion').
-       - If the price seems like a total monetary value rather than a per-share target, set null.
-       - If not stated, set null.
+    3. Target Price: Numeric per-share value. 
+    4. Currency: The currency of the target price (e.g., 'INR', 'USD', 'EUR').
+       - If the price symbol is ₹, use 'INR'.
+       - If the price symbol is $, use 'USD'.
+       - Default to 'INR' for Indian stocks unless explicitly stated otherwise.
     
     Return ONLY a raw JSON list of objects. No preamble, no markdown.
     Example: 
     [
-        {{"stock_name": "Tata Motors", "rating": "Buy", "target_price": 1200.0}}
+        {{"stock_name": "Tata Motors", "rating": "Buy", "target_price": 1200.0, "currency": "INR"}},
+        {{"stock_name": "Southwest Airlines", "rating": "Buy", "target_price": 60.0, "currency": "USD"}}
     ]
     """
 
@@ -116,7 +119,8 @@ def analyze_article(article_data, broker_name="Jefferies"):
                 ratings.append(StockRating(
                     s_name, 
                     item.get("rating", "Unknown"), 
-                    item.get("target_price")
+                    item.get("target_price"),
+                    item.get("currency", "INR")
                 ))
         return ratings
     except Exception as e:

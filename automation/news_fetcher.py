@@ -59,7 +59,15 @@ def fetch_news(broker_name, queries, days=7):
                 
                 text_blob = (article['title'] + " " + article['desc']).lower()
                 # Check for broker name in text
-                if broker_name.lower() in text_blob or (broker_name == "JPMC" and ("jp morgan" in text_blob or "jpmorgan" in text_blob or "jpmc" in text_blob)):
+                match = False
+                if broker_name.lower() in text_blob:
+                    match = True
+                elif broker_name == "JPMC" and ("jp morgan" in text_blob or "jpmorgan" in text_blob or "jpmc" in text_blob):
+                    match = True
+                elif broker_name == "Kotak" and ("kotak institutional equities" in text_blob or "kotak securities" in text_blob):
+                    match = True
+                
+                if match:
                     all_articles.append(article)
             
             gn.clear()
