@@ -442,6 +442,10 @@ else:
                     label = f":blue[**{stock}**] | {tags_str} | Target: {tp} | 🕒 {latest_time_str}"
                 
                 with st.expander(label, expanded=expand_all):
+                    # --- CHART LINK ---
+                    chart_url = f"https://www.google.com/search?q={stock.replace(' ', '+')}+share+price+chart"
+                    st.markdown(f"📈 [**View Live Chart for {stock}**]({chart_url})")
+                    st.write("")
                     # --- POWER TOOLS: WATCHLIST & UPSIDE ---
                     if ENABLE_POWER_TOOLS:
                         pt1, pt2 = st.columns([1, 2])
